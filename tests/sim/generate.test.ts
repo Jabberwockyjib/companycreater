@@ -67,6 +67,45 @@ describe("generateScenario", () => {
     expect(scenario.tables.credits).toHaveLength(0);
   });
 
+  it("keeps every credit within the monthly revenue horizon", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((row) => row.month));
+    const creditMonths = scenario.tables.credits.map((credit) => credit.creditDate.slice(0, 7));
+    const creditTotal = scenario.tables.credits.reduce((total, credit) => total + credit.amount, 0);
+    const creditedRevenueTotal = scenario.tables.monthlyRevenue.reduce(
+      (total, revenue) => total + revenue.creditedRevenue,
+      0,
+    );
+
+    expect(creditMonths.length).toBeGreaterThan(0);
+    expect(creditMonths.every((month) => revenueMonths.has(month))).toBe(true);
+    expect(Math.round(creditedRevenueTotal * 100) / 100).toBe(
+      Math.round(creditTotal * 100) / 100,
+    );
+  });
+
+  it("does not drop credits when late-horizon orders receive adjustments", () => {
+    const scenario = generateScenario({
+      ...defaultScenarioInput,
+      years: 1,
+      returnsRate: 0.2,
+      rejectionRate: 0.1,
+    });
+    const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((row) => row.month));
+    const creditTotal = scenario.tables.credits.reduce((total, credit) => total + credit.amount, 0);
+    const creditedRevenueTotal = scenario.tables.monthlyRevenue.reduce(
+      (total, revenue) => total + revenue.creditedRevenue,
+      0,
+    );
+
+    expect(
+      scenario.tables.credits.every((credit) => revenueMonths.has(credit.creditDate.slice(0, 7))),
+    ).toBe(true);
+    expect(Math.round(creditedRevenueTotal * 100) / 100).toBe(
+      Math.round(creditTotal * 100) / 100,
+    );
+  });
+
   it("returns a strict schema-valid generated scenario", () => {
     const scenario = generateScenario(defaultScenarioInput);
 

@@ -18,6 +18,7 @@ export function generateSupply(
   credits: CreditRecord[];
 } {
   const eventCount = input.disruptionLevel === "high" ? 12 : input.disruptionLevel === "moderate" ? 7 : 3;
+  const finalAdjustmentDate = `${input.startYear + input.years - 1}-12-28`;
   const supplyEvents = Array.from({ length: eventCount }, (_, index): SupplyEvent => {
     const startMonth = random.int(1, 12);
     const startDate = `${input.startYear + random.int(0, input.years - 1)}-${String(startMonth).padStart(2, "0")}-${String(random.int(1, 24)).padStart(2, "0")}`;
@@ -52,7 +53,7 @@ export function generateSupply(
   for (let index = 0; index < returnCount; index += 1) {
     const order = eligibleOrders[(index * 3) % eligibleOrders.length] as Order;
     const creditAmount = round(order.total * random.money(0.08, 0.35));
-    const returnDate = addDays(order.orderDate, random.int(5, 60));
+    const returnDate = addDaysClamped(order.orderDate, random.int(5, 60), finalAdjustmentDate);
 
     returns.push({
       id: `return_${index + 1}`,
@@ -75,7 +76,7 @@ export function generateSupply(
   for (let index = 0; index < rejectionCount; index += 1) {
     const order = eligibleOrders[(index * 5 + 1) % eligibleOrders.length] as Order;
     const rejectedAmount = round(order.total * random.money(0.05, 0.22));
-    const rejectionDate = addDays(order.orderDate, random.int(2, 45));
+    const rejectionDate = addDaysClamped(order.orderDate, random.int(2, 45), finalAdjustmentDate);
 
     rejections.push({
       id: `rejection_${index + 1}`,
@@ -96,6 +97,11 @@ export function generateSupply(
   }
 
   return { supplyEvents, returns, rejections, credits };
+}
+
+function addDaysClamped(dateString: string, days: number, maxDateString: string): string {
+  const date = addDays(dateString, days);
+  return date > maxDateString ? maxDateString : date;
 }
 
 function addDays(dateString: string, days: number): string {

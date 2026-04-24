@@ -88,9 +88,11 @@ function applyCredits(
     const month = credit.creditDate.slice(0, 7);
     const row = monthlyRevenue.find((revenue) => revenue.month === month);
 
-    if (row) {
-      row.creditedRevenue = Math.round((row.creditedRevenue + credit.amount) * 100) / 100;
+    if (!row) {
+      throw new Error(`Credit ${credit.creditDate} falls outside generated monthly revenue horizon`);
     }
+
+    row.creditedRevenue = Math.round((row.creditedRevenue + credit.amount) * 100) / 100;
   }
 }
 
