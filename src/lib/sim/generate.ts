@@ -1,0 +1,94 @@
+import { generatedScenarioSchema, scenarioInputSchema } from "@/lib/domain/schemas";
+import type { GeneratedScenario, MonthlyRevenue, ScenarioInput } from "@/lib/domain/types";
+import { buildCompanyProfile } from "./company";
+import { generateCustomers } from "./customers";
+import { generateOrders } from "./orders";
+import { generateProducts } from "./products";
+import { SeededRandom } from "./random";
+import { generateSales } from "./sales";
+import { generateSupply } from "./supply";
+
+export function generateScenario(input: ScenarioInput): GeneratedScenario {
+  const parsedInput = scenarioInputSchema.parse(input);
+  const random = new SeededRandom(parsedInput.seed);
+  const profile = buildCompanyProfile(parsedInput);
+  const { productFamilies, skus } = generateProducts(parsedInput, random);
+  const { customers, contacts, lifecycleEvents } = generateCustomers(parsedInput, random);
+  const { territories, salespeople, opportunities } = generateSales(parsedInput, random, customers);
+  const { orders, orderLineItems, invoices, monthlyRevenue } = generateOrders(
+    parsedInput,
+    random,
+    customers,
+    salespeople,
+    skus,
+  );
+  const { supplyEvents, returns, rejections, credits } = generateSupply(
+    parsedInput,
+    random,
+    skus,
+    orders,
+  );
+
+  applyCredits(monthlyRevenue, credits.map((credit) => ({
+    creditDate: credit.creditDate,
+    amount: credit.amount,
+  })));
+
+  const scenario: GeneratedScenario = {
+    metadata: {
+      scenarioId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}`,
+      generatedAt: "2026-04-24T00:00:00.000Z",
+      seed: parsedInput.seed,
+      mode: parsedInput.mode,
+    },
+    profile,
+    tables: {
+      productFamilies,
+      skus,
+      customers,
+      contacts,
+      salespeople,
+      territories,
+      opportunities,
+      orders,
+      orderLineItems,
+      invoices,
+      monthlyRevenue,
+      supplyEvents,
+      returns,
+      rejections,
+      credits,
+      lifecycleEvents,
+    },
+    validations: [],
+    assumptionsReport: [
+      "Scenario input values are treated as user assumptions, including revenue target and operating scope.",
+      "Private operating data, including customers, orders, supply events, returns, rejections, and credits, is synthetic.",
+      `Churn assumptions generate at least ${Math.max(1, Math.floor(parsedInput.customerCount * parsedInput.churnRate))} explicit lost lifecycle events.`,
+      "Revenue totals are approximate simulator outputs; formal validation is handled in a later task.",
+    ],
+  };
+
+  return generatedScenarioSchema.parse(scenario);
+}
+
+function applyCredits(
+  monthlyRevenue: MonthlyRevenue[],
+  credits: Array<{ creditDate: string; amount: number }>,
+): void {
+  for (const credit of credits) {
+    const month = credit.creditDate.slice(0, 7);
+    const row = monthlyRevenue.find((revenue) => revenue.month === month);
+
+    if (row) {
+      row.creditedRevenue = Math.round((row.creditedRevenue + credit.amount) * 100) / 100;
+    }
+  }
+}
+
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
