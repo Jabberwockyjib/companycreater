@@ -2,6 +2,43 @@ import { describe, expect, it } from "vitest";
 import { scenarioInputSchema, generatedScenarioSchema } from "@/lib/domain/schemas";
 import { defaultScenarioInput } from "@/lib/domain/defaults";
 
+const createGeneratedScenario = () => ({
+  metadata: {
+    scenarioId: "scenario_test",
+    generatedAt: "2026-04-23T00:00:00.000Z",
+    seed: 42,
+    mode: "fictional",
+  },
+  profile: {
+    companyName: "Acme Industrial Components",
+    industry: "Industrial Components",
+    revenueTarget: 75000000,
+    regions: ["Northeast", "Midwest"],
+    channels: ["direct", "distributor"],
+    claims: [],
+  },
+  tables: {
+    productFamilies: [],
+    skus: [],
+    customers: [],
+    contacts: [],
+    salespeople: [],
+    territories: [],
+    opportunities: [],
+    orders: [],
+    orderLineItems: [],
+    invoices: [],
+    monthlyRevenue: [],
+    supplyEvents: [],
+    returns: [],
+    rejections: [],
+    credits: [],
+    lifecycleEvents: [],
+  },
+  validations: [],
+  assumptionsReport: [],
+});
+
 describe("domain schemas", () => {
   it("accepts the default scenario input", () => {
     const parsed = scenarioInputSchema.parse(defaultScenarioInput);
@@ -16,42 +53,53 @@ describe("domain schemas", () => {
   });
 
   it("accepts an empty but structurally valid generated scenario", () => {
-    const parsed = generatedScenarioSchema.parse({
-      metadata: {
-        scenarioId: "scenario_test",
-        generatedAt: "2026-04-23T00:00:00.000Z",
-        seed: 42,
-        mode: "fictional",
-      },
-      profile: {
-        companyName: "Acme Industrial Components",
-        industry: "Industrial Components",
-        revenueTarget: 75000000,
-        regions: ["Northeast", "Midwest"],
-        channels: ["direct", "distributor"],
-        claims: [],
-      },
-      tables: {
-        productFamilies: [],
-        skus: [],
-        customers: [],
-        contacts: [],
-        salespeople: [],
-        territories: [],
-        opportunities: [],
-        orders: [],
-        orderLineItems: [],
-        invoices: [],
-        monthlyRevenue: [],
-        supplyEvents: [],
-        returns: [],
-        rejections: [],
-        credits: [],
-        lifecycleEvents: [],
-      },
-      validations: [],
-      assumptionsReport: [],
-    });
+    const parsed = generatedScenarioSchema.parse(createGeneratedScenario());
     expect(parsed.profile.companyName).toBe("Acme Industrial Components");
+  });
+
+  it("rejects monthly revenue rows missing booked revenue", () => {
+    const scenario = createGeneratedScenario();
+    scenario.tables.monthlyRevenue = [
+      {
+        month: "2023-01",
+        invoicedRevenue: 100000,
+        creditedRevenue: 5000,
+      },
+    ];
+
+    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
+  });
+
+  it("rejects order rows with invalid status", () => {
+    const scenario = createGeneratedScenario();
+    scenario.tables.orders = [
+      {
+        id: "order_1",
+        customerId: "customer_1",
+        salespersonId: "salesperson_1",
+        orderDate: "2023-01-15",
+        status: "shipped",
+        subtotal: 100000,
+        discountAmount: 5000,
+        total: 95000,
+      },
+    ];
+
+    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
+  });
+
+  it("rejects return rows missing credit amount", () => {
+    const scenario = createGeneratedScenario();
+    scenario.tables.returns = [
+      {
+        id: "return_1",
+        orderId: "order_1",
+        customerId: "customer_1",
+        reason: "damaged",
+        returnDate: "2023-02-01",
+      },
+    ];
+
+    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
   });
 });
