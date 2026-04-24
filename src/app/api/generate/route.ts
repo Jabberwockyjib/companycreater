@@ -26,7 +26,7 @@ export async function handleGenerateRequest(
   try {
     const scenario = generator(parsedInput.data);
     return NextResponse.json(scenario);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Generation request failed" }, { status: 500 });
   }
 }
