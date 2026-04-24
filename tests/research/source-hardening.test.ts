@@ -125,6 +125,28 @@ describe("research source hardening", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not follow redirects server-side", async () => {
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "http://127.0.0.1" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const sources = await collectResearchSources("Acme", "https://example.com");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://example.com/",
+      expect.objectContaining({ redirect: "manual" }),
+    );
+    expect(sources[0]?.sourceType).toBe("fallback");
+    expect(sources[0]).not.toHaveProperty("url");
+    vi.unstubAllGlobals();
+  });
+
   it("throws for unknown non-none LLM providers", () => {
     vi.stubEnv("LLM_PROVIDER", "gemini");
 

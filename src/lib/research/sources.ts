@@ -221,6 +221,7 @@ export async function collectResearchSources(
   try {
     const response = await fetch(safeUrl.href, {
       headers: { "user-agent": "sales-data-generator/0.1" },
+      redirect: "manual",
       signal: buildTimeoutSignal(),
     });
 
