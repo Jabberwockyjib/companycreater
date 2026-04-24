@@ -1,0 +1,53 @@
+import { describe, expect, it } from "vitest";
+import { ZodError } from "zod";
+import { handleGenerateRequest, POST } from "@/app/api/generate/route";
+import { defaultScenarioInput } from "@/lib/domain/defaults";
+
+describe("POST /api/generate", () => {
+  it("generates a scenario from valid input", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        body: JSON.stringify(defaultScenarioInput),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.tables.customers).toHaveLength(defaultScenarioInput.customerCount);
+    expect(
+      body.validations.some(
+        (validation: { severity: string }) => validation.severity === "error",
+      ),
+    ).toBe(false);
+  });
+
+  it("returns 400 for invalid input", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ ...defaultScenarioInput, revenueTarget: 1000000 }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({ error: "Invalid generation input" });
+  });
+
+  it("returns 500 for valid input that fails internal generation", async () => {
+    const response = await handleGenerateRequest(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        body: JSON.stringify(defaultScenarioInput),
+      }),
+      () => {
+        throw new ZodError([]);
+      },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: "Generation request failed" });
+  });
+});
