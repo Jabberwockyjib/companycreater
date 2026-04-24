@@ -7,6 +7,9 @@ import { generateProducts } from "./products";
 import { SeededRandom } from "./random";
 import { generateSales } from "./sales";
 import { generateSupply } from "./supply";
+import { validateScenario } from "./validate";
+
+const BOOKING_REALIZATION_MULTIPLIER = 1.5;
 
 export function generateScenario(input: ScenarioInput): GeneratedScenario {
   const parsedInput = scenarioInputSchema.parse(input);
@@ -16,7 +19,11 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
   const { customers, contacts, lifecycleEvents } = generateCustomers(parsedInput, random);
   const { territories, salespeople, opportunities } = generateSales(parsedInput, random, customers);
   const { orders, orderLineItems, invoices, monthlyRevenue } = generateOrders(
-    parsedInput,
+    {
+      ...parsedInput,
+      revenueTarget:
+        parsedInput.revenueTarget * parsedInput.years * BOOKING_REALIZATION_MULTIPLIER,
+    },
     random,
     customers,
     salespeople,
@@ -68,6 +75,8 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
       "Revenue totals are approximate simulator outputs; formal validation is handled in a later task.",
     ],
   };
+
+  scenario.validations = validateScenario(scenario, parsedInput);
 
   return generatedScenarioSchema.parse(scenario);
 }
