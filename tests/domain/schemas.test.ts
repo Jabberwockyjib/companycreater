@@ -59,47 +59,65 @@ describe("domain schemas", () => {
 
   it("rejects monthly revenue rows missing booked revenue", () => {
     const scenario = createGeneratedScenario();
-    scenario.tables.monthlyRevenue = [
-      {
-        month: "2023-01",
-        invoicedRevenue: 100000,
-        creditedRevenue: 5000,
+    const malformedScenario = {
+      ...scenario,
+      tables: {
+        ...scenario.tables,
+        monthlyRevenue: [
+          {
+            month: "2023-01",
+            invoicedRevenue: 100000,
+            creditedRevenue: 5000,
+          },
+        ],
       },
-    ];
+    };
 
-    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
+    expect(() => generatedScenarioSchema.parse(malformedScenario)).toThrow();
   });
 
   it("rejects order rows with invalid status", () => {
     const scenario = createGeneratedScenario();
-    scenario.tables.orders = [
-      {
-        id: "order_1",
-        customerId: "customer_1",
-        salespersonId: "salesperson_1",
-        orderDate: "2023-01-15",
-        status: "shipped",
-        subtotal: 100000,
-        discountAmount: 5000,
-        total: 95000,
+    const malformedScenario = {
+      ...scenario,
+      tables: {
+        ...scenario.tables,
+        orders: [
+          {
+            id: "order_1",
+            customerId: "customer_1",
+            salespersonId: "salesperson_1",
+            orderDate: "2023-01-15",
+            status: "shipped",
+            subtotal: 100000,
+            discountAmount: 5000,
+            total: 95000,
+          },
+        ],
       },
-    ];
+    };
 
-    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
+    expect(() => generatedScenarioSchema.parse(malformedScenario)).toThrow();
   });
 
   it("rejects return rows missing credit amount", () => {
     const scenario = createGeneratedScenario();
-    scenario.tables.returns = [
-      {
-        id: "return_1",
-        orderId: "order_1",
-        customerId: "customer_1",
-        reason: "damaged",
-        returnDate: "2023-02-01",
+    const malformedScenario = {
+      ...scenario,
+      tables: {
+        ...scenario.tables,
+        returns: [
+          {
+            id: "return_1",
+            orderId: "order_1",
+            customerId: "customer_1",
+            reason: "damaged",
+            returnDate: "2023-02-01",
+          },
+        ],
       },
-    ];
+    };
 
-    expect(() => generatedScenarioSchema.parse(scenario)).toThrow();
+    expect(() => generatedScenarioSchema.parse(malformedScenario)).toThrow();
   });
 });
