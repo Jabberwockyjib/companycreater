@@ -30,6 +30,9 @@ describe("research source hardening", () => {
       "http://169.254.169.254",
       "http://[::1]",
       "http://[fe80::1]",
+      "http://[::ffff:7f00:1]",
+      "http://[::ffff:c0a8:010a]",
+      "http://[::ffff:127.0.0.1]",
       "http://internal.local",
     ];
 
@@ -78,6 +81,32 @@ describe("research source hardening", () => {
     });
     expect(sources[0]?.text.length).toBeLessThanOrEqual(20_000);
     expect(sources[0]?.text).not.toContain("<main>");
+    vi.unstubAllGlobals();
+  });
+
+  it("stops reading streamed response bodies after the byte limit", async () => {
+    const encoder = new TextEncoder();
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        controller.enqueue(encoder.encode("A".repeat(1024)));
+
+        if (pullCount >= 100) {
+          controller.close();
+        }
+      },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body, { status: 200 })),
+    );
+
+    const sources = await collectResearchSources("Acme", "https://example.com");
+
+    expect(sources[0]?.text.length).toBeLessThanOrEqual(20_000);
+    expect(pullCount).toBeLessThan(100);
     vi.unstubAllGlobals();
   });
 

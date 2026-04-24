@@ -8,6 +8,7 @@ export interface ResearchSource {
 }
 
 const MAX_SOURCE_TEXT_LENGTH = 20_000;
+const MAX_BODY_BYTES = 64_000;
 const FETCH_TIMEOUT_MS = 5_000;
 
 function stripHtml(html: string) {
@@ -48,6 +49,11 @@ function isUnsafeIPv4(hostname: string) {
 
 function isUnsafeIPv6(hostname: string) {
   const normalizedHostname = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  const ipv4MappedAddress = getIPv4MappedIPv6Address(normalizedHostname);
+
+  if (ipv4MappedAddress) {
+    return isUnsafeIPv4(ipv4MappedAddress);
+  }
 
   return (
     normalizedHostname === "::" ||
@@ -56,6 +62,40 @@ function isUnsafeIPv6(hostname: string) {
     normalizedHostname.startsWith("fc") ||
     normalizedHostname.startsWith("fd")
   );
+}
+
+function getIPv4MappedIPv6Address(hostname: string) {
+  if (!hostname.startsWith("::ffff:")) {
+    return undefined;
+  }
+
+  const mappedAddress = hostname.slice("::ffff:".length);
+
+  if (mappedAddress.includes(".")) {
+    return mappedAddress;
+  }
+
+  const segments = mappedAddress.split(":");
+
+  if (segments.length !== 2) {
+    return undefined;
+  }
+
+  const high = Number.parseInt(segments[0] ?? "", 16);
+  const low = Number.parseInt(segments[1] ?? "", 16);
+
+  if (
+    !Number.isInteger(high) ||
+    !Number.isInteger(low) ||
+    high < 0 ||
+    high > 0xffff ||
+    low < 0 ||
+    low > 0xffff
+  ) {
+    return undefined;
+  }
+
+  return [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
 }
 
 function parseSafePublicUrl(companyUrl: string): URL | undefined {
@@ -112,6 +152,58 @@ function buildTimeoutSignal() {
   return controller.signal;
 }
 
+async function readBoundedResponseText(response: Response) {
+  if (!response.body) {
+    return (await response.text()).slice(0, MAX_BODY_BYTES);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytesRead = 0;
+  let reachedLimit = false;
+
+  try {
+    while (bytesRead < MAX_BODY_BYTES) {
+      const { done, value } = await reader.read();
+
+      if (done || !value) {
+        break;
+      }
+
+      const remainingBytes = MAX_BODY_BYTES - bytesRead;
+      const boundedChunk = value.byteLength > remainingBytes ? value.slice(0, remainingBytes) : value;
+
+      chunks.push(boundedChunk);
+      bytesRead += boundedChunk.byteLength;
+
+      if (value.byteLength >= remainingBytes) {
+        reachedLimit = true;
+        break;
+      }
+    }
+
+    if (reachedLimit) {
+      await reader.cancel();
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return new TextDecoder().decode(concatenateChunks(chunks, bytesRead));
+}
+
+function concatenateChunks(chunks: Uint8Array[], totalLength: number) {
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return output;
+}
+
 export async function collectResearchSources(
   companyName: string,
   companyUrl?: string,
@@ -136,7 +228,7 @@ export async function collectResearchSources(
       return [buildFallbackSource(companyName, safeUrl.href)];
     }
 
-    const text = stripHtml(await response.text());
+    const text = stripHtml(await readBoundedResponseText(response));
 
     return [
       {
