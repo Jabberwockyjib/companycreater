@@ -43,10 +43,16 @@ describe("generateScenario", () => {
 
   it("does not create lost lifecycle events when churn rate is zero", () => {
     const scenario = generateScenario({ ...defaultScenarioInput, churnRate: 0 });
+    const churnReport = scenario.assumptionsReport.find((assumption) =>
+      assumption.toLowerCase().includes("churn"),
+    );
 
     expect(scenario.tables.lifecycleEvents.some((event) => event.eventType === "lost")).toBe(
       false,
     );
+    expect(churnReport?.toLowerCase()).toContain("no customer loss events");
+    expect(churnReport?.toLowerCase()).toContain("churnrate is 0");
+    expect(churnReport?.toLowerCase()).not.toContain("lost customer lifecycle events were generated");
   });
 
   it("does not create returns, rejections, or credits when adjustment rates are zero", () => {

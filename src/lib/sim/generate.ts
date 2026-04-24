@@ -64,12 +64,20 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
     assumptionsReport: [
       "Scenario input values are treated as user assumptions, including revenue target and operating scope.",
       "Private operating data, including customers, orders, supply events, returns, rejections, and credits, is synthetic.",
-      `Churn assumptions generate at least ${Math.max(1, Math.floor(parsedInput.customerCount * parsedInput.churnRate))} explicit lost lifecycle events.`,
+      buildChurnAssumption(parsedInput),
       "Revenue totals are approximate simulator outputs; formal validation is handled in a later task.",
     ],
   };
 
   return generatedScenarioSchema.parse(scenario);
+}
+
+function buildChurnAssumption(input: ScenarioInput): string {
+  if (input.churnRate === 0) {
+    return "No customer loss events were generated because churnRate is 0.";
+  }
+
+  return "Lost customer lifecycle events were generated from churn assumptions.";
 }
 
 function applyCredits(
