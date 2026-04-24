@@ -1,0 +1,105 @@
+import { describe, expect, it, vi } from "vitest";
+import { defaultScenarioInput } from "@/lib/domain/defaults";
+import { getLlmProvider } from "@/lib/model/providers";
+import { buildProfileFromSources } from "@/lib/research/profile-builder";
+import { collectResearchSources } from "@/lib/research/sources";
+
+describe("research source hardening", () => {
+  it("does not expose about:blank for no-url fallback sources", async () => {
+    const sources = await collectResearchSources("Acme Industrial Components", "");
+
+    expect(sources[0]).toMatchObject({
+      id: "source_user_company_name",
+      sourceType: "fallback",
+      title: "Acme Industrial Components",
+    });
+    expect(sources[0]).not.toHaveProperty("url");
+  });
+
+  it("does not fetch syntactically unsafe server-side URLs", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const unsafeUrls = [
+      "ftp://example.com",
+      "http://localhost:3000",
+      "http://127.0.0.1",
+      "http://10.1.2.3",
+      "http://172.16.0.1",
+      "http://192.168.1.10",
+      "http://169.254.169.254",
+      "http://[::1]",
+      "http://[fe80::1]",
+      "http://internal.local",
+    ];
+
+    for (const unsafeUrl of unsafeUrls) {
+      const sources = await collectResearchSources("Acme", unsafeUrl);
+      expect(sources[0]?.sourceType).toBe("fallback");
+      expect(sources[0]).not.toHaveProperty("url");
+    }
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("labels fallback profile claims as inferred without source URLs", () => {
+    const profile = buildProfileFromSources(defaultScenarioInput, [
+      {
+        id: "source_company_homepage_unavailable",
+        sourceType: "fallback",
+        title: "Acme Industrial Components",
+        retrievedAt: "2026-04-24T00:00:00.000Z",
+        text: "Public web research was unavailable.",
+      },
+    ]);
+
+    expect(profile.claims[0]).toMatchObject({
+      field: "source",
+      sourceType: "inferred",
+      confidence: 0.2,
+    });
+    expect(profile.claims[0]?.value).toContain("Public research unavailable");
+    expect(profile.claims[0]).not.toHaveProperty("sourceUrl");
+  });
+
+  it("bounds fetched response text before and after HTML stripping", async () => {
+    const longHtml = `<main>${"A".repeat(25_000)}</main>`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(longHtml, { status: 200 })),
+    );
+
+    const sources = await collectResearchSources("Acme", "https://example.com");
+
+    expect(sources[0]).toMatchObject({
+      sourceType: "public_web",
+      url: "https://example.com/",
+    });
+    expect(sources[0]?.text.length).toBeLessThanOrEqual(20_000);
+    expect(sources[0]?.text).not.toContain("<main>");
+    vi.unstubAllGlobals();
+  });
+
+  it("passes a timeout signal to fetch", async () => {
+    const fetchSpy = vi.fn(async () => new Response("<p>ok</p>", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await collectResearchSources("Acme", "https://example.com");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://example.com/",
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("throws for unknown non-none LLM providers", () => {
+    vi.stubEnv("LLM_PROVIDER", "gemini");
+
+    expect(() => getLlmProvider()).toThrow("Unsupported LLM_PROVIDER");
+    vi.unstubAllEnvs();
+  });
+});

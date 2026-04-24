@@ -6,16 +6,23 @@ export function buildProfileFromSources(
   sources: ResearchSource[],
 ): CompanyProfile {
   const sourceClaims: ProfileClaim[] = sources.map((source, index) => {
-    const isLowConfidenceSource =
-      source.url === "about:blank" || source.id === "source_company_homepage_unavailable";
+    if (source.sourceType === "fallback") {
+      return {
+        id: `source_claim_${index + 1}`,
+        field: "source",
+        value: `Public research unavailable: ${source.text}`,
+        sourceType: "inferred",
+        confidence: 0.2,
+      };
+    }
 
     return {
-      id: `public_claim_${index + 1}`,
+      id: `source_claim_${index + 1}`,
       field: "source",
       value: `Public source reviewed: ${source.title}`,
       sourceType: "public_fact",
-      confidence: isLowConfidenceSource ? 0.2 : 0.7,
-      ...(source.url === "about:blank" ? {} : { sourceUrl: source.url }),
+      confidence: 0.7,
+      ...(source.url ? { sourceUrl: source.url } : {}),
     };
   });
 
