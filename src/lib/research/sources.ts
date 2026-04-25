@@ -10,6 +10,20 @@ export interface ResearchSource {
 const MAX_SOURCE_TEXT_LENGTH = 20_000;
 const MAX_BODY_BYTES = 64_000;
 const FETCH_TIMEOUT_MS = 5_000;
+const MAX_RESEARCH_SOURCES = 5;
+const RESEARCH_LINK_KEYWORDS = [
+  "product",
+  "catalog",
+  "service",
+  "solution",
+  "industry",
+  "market",
+  "application",
+  "capability",
+  "manufacturing",
+  "engineering",
+  "custom",
+];
 
 function stripHtml(html: string) {
   return html
@@ -152,6 +166,46 @@ function buildTimeoutSignal() {
   return controller.signal;
 }
 
+function extractRelevantSameSiteUrls(html: string, baseUrl: URL) {
+  const candidates = new Map<string, number>();
+  const linkPattern =
+    /<a\b[^>]*href\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(html))) {
+    const href = match[1] ?? match[2] ?? match[3] ?? "";
+    const anchorText = stripHtml(match[4] ?? "");
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(href, baseUrl);
+    } catch {
+      continue;
+    }
+
+    if (parsedUrl.origin !== baseUrl.origin || !parseSafePublicUrl(parsedUrl.href)) {
+      continue;
+    }
+
+    parsedUrl.hash = "";
+    const haystack = `${parsedUrl.pathname} ${anchorText}`.toLowerCase();
+    const score = RESEARCH_LINK_KEYWORDS.reduce(
+      (sum, keyword) => sum + (haystack.includes(keyword) ? 1 : 0),
+      0,
+    );
+
+    if (score > 0) {
+      candidates.set(parsedUrl.href, Math.max(candidates.get(parsedUrl.href) ?? 0, score));
+    }
+  }
+
+  return [...candidates.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([href]) => href)
+    .filter((href) => href !== baseUrl.href)
+    .slice(0, MAX_RESEARCH_SOURCES - 1);
+}
+
 async function readBoundedResponseText(response: Response) {
   if (!response.body) {
     return (await response.text()).slice(0, MAX_BODY_BYTES);
@@ -204,6 +258,27 @@ function concatenateChunks(chunks: Uint8Array[], totalLength: number) {
   return output;
 }
 
+async function fetchPublicResearchPage(url: URL) {
+  const response = await fetch(url.href, {
+    headers: { "user-agent": "sales-data-generator/0.1" },
+    redirect: "manual",
+    signal: buildTimeoutSignal(),
+  });
+
+  if (!response.ok) {
+    return undefined;
+  }
+
+  const html = await readBoundedResponseText(response);
+  const text = stripHtml(html);
+
+  if (!text) {
+    return undefined;
+  }
+
+  return { html, text };
+}
+
 export async function collectResearchSources(
   companyName: string,
   companyUrl?: string,
@@ -219,28 +294,31 @@ export async function collectResearchSources(
   }
 
   try {
-    const response = await fetch(safeUrl.href, {
-      headers: { "user-agent": "sales-data-generator/0.1" },
-      redirect: "manual",
-      signal: buildTimeoutSignal(),
-    });
+    const firstPage = await fetchPublicResearchPage(safeUrl);
 
-    if (!response.ok) {
+    if (!firstPage) {
       return [buildFallbackSource(companyName, safeUrl.href)];
     }
 
-    const text = stripHtml(await readBoundedResponseText(response));
+    const pages = [{ url: safeUrl.href, text: firstPage.text }];
+    const discoveredUrls = extractRelevantSameSiteUrls(firstPage.html, safeUrl);
 
-    return [
-      {
-        id: "source_company_homepage",
-        url: safeUrl.href,
-        title: companyName,
-        retrievedAt: new Date().toISOString(),
-        sourceType: "public_web",
-        text: text || buildFallbackSource(companyName, safeUrl.href).text,
-      },
-    ];
+    for (const href of discoveredUrls) {
+      const page = await fetchPublicResearchPage(new URL(href));
+
+      if (page) {
+        pages.push({ url: href, text: page.text });
+      }
+    }
+
+    return pages.map((page, index) => ({
+      id: index === 0 ? "source_company_homepage" : `source_company_page_${index + 1}`,
+      url: page.url,
+      title: companyName,
+      retrievedAt: new Date().toISOString(),
+      sourceType: "public_web" as const,
+      text: page.text,
+    }));
   } catch {
     return [buildFallbackSource(companyName, safeUrl.href)];
   }

@@ -10,6 +10,7 @@
 
 # local persistence
 /data/
+.playwright-mcp/
 
 # misc
 .DS_Store

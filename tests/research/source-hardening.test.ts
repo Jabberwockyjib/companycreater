@@ -84,6 +84,48 @@ describe("research source hardening", () => {
     vi.unstubAllGlobals();
   });
 
+  it("discovers and fetches relevant same-site research pages", async () => {
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url === "https://example.com/") {
+        return new Response(
+          `
+            <main>
+              <p>General manufacturer overview.</p>
+              <a href="/products-services/">Products and Services</a>
+              <a href="/contact/">Contact</a>
+              <a href="https://other.example.com/products/">Other site products</a>
+            </main>
+          `,
+          { status: 200 },
+        );
+      }
+
+      if (url === "https://example.com/products-services/") {
+        return new Response(
+          "<main>Precision gears, enclosed drives, speed reducers, and custom industrial gearing.</main>",
+          { status: 200 },
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const sources = await collectResearchSources("Cleveland Gear Company", "https://example.com");
+
+    expect(sources).toHaveLength(2);
+    expect(sources.map((source) => source.url)).toEqual([
+      "https://example.com/",
+      "https://example.com/products-services/",
+    ]);
+    expect(sources[1]?.text).toContain("Precision gears");
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "https://other.example.com/products/",
+      expect.anything(),
+    );
+    vi.unstubAllGlobals();
+  });
+
   it("stops reading streamed response bodies after the byte limit", async () => {
     const encoder = new TextEncoder();
     let pullCount = 0;
