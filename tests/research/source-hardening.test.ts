@@ -148,9 +148,60 @@ describe("research source hardening", () => {
   });
 
   it("throws for unknown non-none LLM providers", () => {
-    vi.stubEnv("LLM_PROVIDER", "gemini");
+    vi.stubEnv("LLM_PROVIDER", "unsupported");
 
     expect(() => getLlmProvider()).toThrow("Unsupported LLM_PROVIDER");
+    vi.unstubAllEnvs();
+  });
+
+  it("requires Gemini configuration when the Gemini provider is enabled", () => {
+    vi.stubEnv("LLM_PROVIDER", "gemini");
+    vi.stubEnv("LLM_MODEL", "");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
+
+    expect(() => getLlmProvider()).toThrow("LLM_MODEL is required");
+    vi.unstubAllEnvs();
+  });
+
+  it("extracts structured JSON through the Gemini provider", async () => {
+    vi.stubEnv("LLM_PROVIDER", "gemini");
+    vi.stubEnv("LLM_MODEL", "gemini-test-model");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-key");
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [{ text: JSON.stringify({ productFamilies: ["Sealants"] }) }],
+                },
+              },
+            ],
+            usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 7 },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await getLlmProvider().extractJson<{ productFamilies: string[] }>({
+      system: "system",
+      prompt: "prompt",
+      schemaName: "ResearchExtraction",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/v1beta/models/gemini-test-model:generateContent"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result).toMatchObject({
+      provider: "gemini",
+      model: "gemini-test-model",
+      data: { productFamilies: ["Sealants"] },
+      usage: { inputTokens: 11, outputTokens: 7 },
+    });
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
 });

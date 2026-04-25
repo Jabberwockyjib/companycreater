@@ -1,9 +1,11 @@
 import type { CompanyProfile, ProfileClaim, ScenarioInput } from "@/lib/domain/types";
+import type { ResearchExtraction } from "@/lib/model/types";
 import type { ResearchSource } from "./sources";
 
 export function buildProfileFromSources(
   input: ScenarioInput,
   sources: ResearchSource[],
+  extraction?: ResearchExtraction,
 ): CompanyProfile {
   const sourceClaims: ProfileClaim[] = sources.map((source, index) => {
     if (source.sourceType === "fallback") {
@@ -34,6 +36,7 @@ export function buildProfileFromSources(
     channels: input.channels,
     claims: [
       ...sourceClaims,
+      ...extractionToClaims(extraction),
       {
         id: "inferred_profile_scope",
         field: "profileScope",
@@ -44,4 +47,30 @@ export function buildProfileFromSources(
       },
     ],
   };
+}
+
+function extractionToClaims(extraction?: ResearchExtraction): ProfileClaim[] {
+  if (!extraction) {
+    return [];
+  }
+
+  const entries: Array<[keyof ResearchExtraction, string]> = [
+    ["productFamilies", "AI extracted product families"],
+    ["markets", "AI extracted markets"],
+    ["channels", "AI extracted channels"],
+    ["geographies", "AI extracted geographies"],
+    ["launches", "AI extracted launches"],
+    ["buyerSegments", "AI extracted buyer segments"],
+    ["industryLanguage", "AI extracted industry language"],
+  ];
+
+  return entries.flatMap(([field, label]) =>
+    extraction[field].slice(0, 10).map((value, index) => ({
+      id: `ai_${field}_${index + 1}`,
+      field: `ai.${field}`,
+      value: `${label}: ${value}`,
+      sourceType: "inferred" as const,
+      confidence: 0.55,
+    })),
+  );
 }

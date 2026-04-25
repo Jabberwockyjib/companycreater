@@ -22,7 +22,25 @@ npm run build
 
 ## LLM Configuration
 
-The app runs without an LLM when `LLM_PROVIDER=none`. Provider-specific keys can be added in `.env.local` when model-backed research extraction is enabled.
+The app runs without an LLM when `LLM_PROVIDER=none`. To enable Gemini-backed public research extraction, add these values to `.env.local`:
+
+```bash
+LLM_PROVIDER=gemini
+LLM_MODEL=<gemini-model-id>
+GOOGLE_GENERATIVE_AI_API_KEY=<your-key>
+```
+
+The model is only used to extract public signals such as product families, markets, geographies, launches, buyer segments, and industry language. Private sales, customer, order, quota, return, rejection, churn, and revenue records remain synthetic.
+
+## Scenario Persistence
+
+Generated scenarios can be saved and reloaded from the Scenario Library in the app. The local SQLite database defaults to `data/scenarios.sqlite` and can be changed with:
+
+```bash
+SCENARIO_DB_PATH=/absolute/path/to/scenarios.sqlite
+```
+
+The API surface is `GET /api/scenarios`, `POST /api/scenarios`, and `GET /api/scenarios/:id`.
 
 ## MVP Scope
 

@@ -8,7 +8,8 @@ export function buildResearchExtractionPrompt(sourceText: string) {
 
   return [
     "Extract product families, markets, channels, geographies, launches, buyer segments, and industry language from this public source text.",
-    "Return concise structured JSON. Do not infer or invent private sales, customer, order, quota, return, rejection, churn, or revenue data.",
+    'Return concise structured JSON with this exact shape: {"productFamilies":[],"markets":[],"channels":[],"geographies":[],"launches":[],"buyerSegments":[],"industryLanguage":[]}.',
+    "Do not infer or invent private sales, customer, order, quota, return, rejection, churn, or revenue data.",
     "",
     "SOURCE:",
     boundedSourceText,

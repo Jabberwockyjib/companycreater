@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Sales Data Generator",
   description:
     "Generate synthetic CRM, BI, and sales operations data for B2B product companies.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

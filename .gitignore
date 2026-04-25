@@ -8,6 +8,9 @@
 # production
 /build
 
+# local persistence
+/data/
+
 # misc
 .DS_Store
 *.pem

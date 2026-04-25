@@ -18,3 +18,13 @@ export interface LlmProvider {
     schemaName: string;
   }): Promise<ModelResult<T>>;
 }
+
+export interface ResearchExtraction {
+  productFamilies: string[];
+  markets: string[];
+  channels: string[];
+  geographies: string[];
+  launches: string[];
+  buyerSegments: string[];
+  industryLanguage: string[];
+}

@@ -7,6 +7,7 @@ import { ProfileReview } from "@/components/generator/profile-review";
 import { ResearchPanel } from "@/components/generator/research-panel";
 import { ScenarioDashboard } from "@/components/generator/scenario-dashboard";
 import { ScenarioForm } from "@/components/generator/scenario-form";
+import { ScenarioLibrary } from "@/components/generator/scenario-library";
 import { ValidationPanel } from "@/components/generator/validation-panel";
 import { defaultScenarioInput } from "@/lib/domain/defaults";
 import type { CompanyProfile, GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
@@ -132,6 +133,7 @@ export default function Home() {
         <ValidationPanel scenario={scenario} />
         <ProfileReview scenario={scenario} />
         <DataPreview scenario={scenario} />
+        <ScenarioLibrary scenario={scenario} onLoad={setScenario} />
         <ExportPanel scenario={scenario} />
       </div>
     </main>
