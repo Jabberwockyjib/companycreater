@@ -97,6 +97,29 @@ describe("generateScenario", () => {
     ).toBe(true);
   });
 
+  it("gives lost customers pre-loss orders and stops orders after the loss date", () => {
+    const scenario = generateScenario({
+      ...defaultScenarioInput,
+      churnRate: 0.15,
+      customerCount: 40,
+      years: 3,
+    });
+    const lostEventsByCustomer = new Map(
+      scenario.tables.lifecycleEvents
+        .filter((event) => event.eventType === "lost")
+        .map((event) => [event.customerId, event]),
+    );
+
+    expect(lostEventsByCustomer.size).toBeGreaterThan(0);
+
+    for (const [customerId, lostEvent] of lostEventsByCustomer) {
+      const customerOrders = scenario.tables.orders.filter((order) => order.customerId === customerId);
+
+      expect(customerOrders.length).toBeGreaterThan(0);
+      expect(customerOrders.every((order) => order.orderDate < lostEvent.eventDate)).toBe(true);
+    }
+  });
+
   it("does not create returns, rejections, or credits when adjustment rates are zero", () => {
     const scenario = generateScenario({
       ...defaultScenarioInput,

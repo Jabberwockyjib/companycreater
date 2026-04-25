@@ -35,6 +35,7 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
     salespeople,
     skus,
     opportunities,
+    lifecycleEvents,
   );
   const { supplyEvents, returns, rejections, credits } = generateSupply(
     parsedInput,

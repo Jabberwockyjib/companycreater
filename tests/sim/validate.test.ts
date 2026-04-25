@@ -83,6 +83,31 @@ describe("validateScenario", () => {
     ).toBe(true);
   });
 
+  it("reports orders dated after a customer loss event", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const lostEvent = scenario.tables.lifecycleEvents.find((event) => event.eventType === "lost");
+
+    if (!lostEvent) {
+      throw new Error("Expected default scenario to include a lost customer");
+    }
+
+    const order = scenario.tables.orders.find((candidate) => candidate.customerId === lostEvent.customerId);
+
+    if (!order) {
+      throw new Error("Expected lost customer to have pre-loss order history");
+    }
+
+    order.orderDate = lostEvent.eventDate;
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) => message.code === "order_after_customer_loss" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
   it("reports credits that fall outside the monthly revenue horizon", () => {
     const scenario = generateScenario(defaultScenarioInput);
     scenario.tables.credits[0].creditDate = "2099-01-01";

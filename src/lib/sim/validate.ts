@@ -17,6 +17,11 @@ export function validateScenario(
     scenario.tables.opportunities.map((opportunity) => [opportunity.id, opportunity]),
   );
   const orderById = new Map(scenario.tables.orders.map((order) => [order.id, order]));
+  const lostDateByCustomer = new Map(
+    scenario.tables.lifecycleEvents
+      .filter((event) => event.eventType === "lost")
+      .map((event) => [event.customerId, event.eventDate]),
+  );
   const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((revenue) => revenue.month));
 
   validateRevenue(messages, scenario, input);
@@ -85,6 +90,16 @@ export function validateScenario(
         code: "order_account_owner_mismatch",
         severity: "error",
         message: `Order ${order.id} uses ${order.salespersonId}, but customer ${customer.id} is owned by ${customer.accountOwnerId}.`,
+      });
+    }
+
+    const lostDate = lostDateByCustomer.get(order.customerId);
+
+    if (lostDate && order.orderDate >= lostDate) {
+      messages.push({
+        code: "order_after_customer_loss",
+        severity: "error",
+        message: `Order ${order.id} is dated after customer ${order.customerId} was lost.`,
       });
     }
 

@@ -71,7 +71,7 @@ export function generateOpportunities(
     const salesperson =
       salespeople.find((candidate) => candidate.id === customer.accountOwnerId) ??
       (salespeople[index % salespeople.length] as Salesperson);
-    const stage = customer.accountStatus === "lost" ? "closed_lost" : "closed_won";
+    const stage = "closed_won";
 
     return {
       id: `opportunity_${index + 1}`,
@@ -82,8 +82,8 @@ export function generateOpportunities(
       closeDate: `${input.startYear + random.int(0, input.years - 1)}-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`,
       cycleDays: random.int(28, 180),
       closeReason:
-        stage === "closed_lost"
-          ? "Lost to timing or budget constraints."
+        customer.accountStatus === "lost"
+          ? "Won initial business before the customer later churned."
           : "Generated from synthetic pipeline assumptions.",
     };
   });

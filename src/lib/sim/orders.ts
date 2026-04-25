@@ -1,4 +1,4 @@
-import type { Customer, Invoice, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
+import type { Customer, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
 
 const ORDER_STATUSES = ["fulfilled", "partial", "backordered", "cancelled"] as const;
@@ -10,6 +10,7 @@ export function generateOrders(
   salespeople: Salesperson[],
   skus: Sku[],
   opportunities: Opportunity[],
+  lifecycleEvents: LifecycleEvent[],
 ): {
   orders: Order[];
   orderLineItems: OrderLineItem[];
@@ -20,7 +21,15 @@ export function generateOrders(
   const orderLineItems: OrderLineItem[] = [];
   const invoices: Invoice[] = [];
   const monthlyRevenue = buildMonthlyRevenue(input);
-  const orderableCustomers = customers.filter((customer) => customer.accountStatus === "active");
+  const lostDateByCustomer = new Map(
+    lifecycleEvents
+      .filter((event) => event.eventType === "lost")
+      .map((event) => [event.customerId, event.eventDate]),
+  );
+  const orderableCustomers = customers.filter(
+    (customer) =>
+      customer.accountStatus === "active" || lostDateByCustomer.has(customer.id),
+  );
   const closedWonOpportunityByCustomer = new Map(
     opportunities
       .filter((opportunity) => opportunity.stage === "closed_won")
@@ -44,9 +53,9 @@ export function generateOrders(
     }
 
     const monthOffset = index % (input.years * 12);
-    const year = input.startYear + Math.floor(monthOffset / 12);
-    const month = (monthOffset % 12) + 1;
-    const orderDate = `${year}-${String(month).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`;
+    const orderDate = buildOrderDate(input, random, customer, lostDateByCustomer, monthOffset);
+    const year = Number(orderDate.slice(0, 4));
+    const month = Number(orderDate.slice(5, 7));
     const lineCount = random.int(1, 4);
     let subtotal = 0;
 
@@ -120,6 +129,32 @@ function addDays(dateString: string, days: number): string {
   const date = new Date(`${dateString}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function buildOrderDate(
+  input: ScenarioInput,
+  random: SeededRandom,
+  customer: Customer,
+  lostDateByCustomer: Map<string, string>,
+  monthOffset: number,
+): string {
+  const lostDate = lostDateByCustomer.get(customer.id);
+
+  if (!lostDate) {
+    const year = input.startYear + Math.floor(monthOffset / 12);
+    const month = (monthOffset % 12) + 1;
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`;
+  }
+
+  const lostYear = Number(lostDate.slice(0, 4));
+  const lostMonth = Number(lostDate.slice(5, 7));
+  const monthsBeforeLoss = Math.max(1, (lostYear - input.startYear) * 12 + lostMonth - 1);
+  const boundedMonthOffset = monthOffset % monthsBeforeLoss;
+  const year = input.startYear + Math.floor(boundedMonthOffset / 12);
+  const month = (boundedMonthOffset % 12) + 1;
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`;
 }
 
 function round(value: number): number {
