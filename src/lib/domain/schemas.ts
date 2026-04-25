@@ -21,7 +21,7 @@ export const scenarioInputSchema = z.object({
   churnRate: z.number().min(0).max(0.3),
 });
 
-const claimSchema = z.object({
+export const claimSchema = z.object({
   id: z.string(),
   field: z.string(),
   value: z.string(),
@@ -194,6 +194,15 @@ const lifecycleEventSchema = z.object({
   narrative: z.string(),
 });
 
+export const companyProfileSchema = z.object({
+  companyName: z.string(),
+  industry: z.string(),
+  revenueTarget: z.number(),
+  regions: z.array(z.string()),
+  channels: z.array(z.enum(["direct", "distributor", "partner", "ecommerce"])),
+  claims: z.array(claimSchema),
+});
+
 export const generatedScenarioSchema = z.object({
   metadata: z.object({
     scenarioId: z.string(),
@@ -201,14 +210,7 @@ export const generatedScenarioSchema = z.object({
     seed: z.number().int(),
     mode: z.enum(["fictional", "real_company"]),
   }),
-  profile: z.object({
-    companyName: z.string(),
-    industry: z.string(),
-    revenueTarget: z.number(),
-    regions: z.array(z.string()),
-    channels: z.array(z.enum(["direct", "distributor", "partner", "ecommerce"])),
-    claims: z.array(claimSchema),
-  }),
+  profile: companyProfileSchema,
   tables: z.object({
     productFamilies: z.array(productFamilySchema),
     skus: z.array(skuSchema),

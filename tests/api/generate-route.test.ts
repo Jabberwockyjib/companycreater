@@ -22,6 +22,39 @@ describe("POST /api/generate", () => {
     ).toBe(false);
   });
 
+  it("accepts researched profile context for catalog generation", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          input: { ...defaultScenarioInput, mode: "real_company", skuCount: 36 },
+          researchProfile: {
+            companyName: "Cleveland Gear Company",
+            industry: "Industrial Components",
+            revenueTarget: defaultScenarioInput.revenueTarget,
+            regions: defaultScenarioInput.regions,
+            channels: defaultScenarioInput.channels,
+            claims: [
+              {
+                id: "ai_product_1",
+                field: "ai.productFamilies",
+                value: "AI extracted product families: Worm Gears",
+                sourceType: "inferred",
+                confidence: 0.55,
+              },
+            ],
+          },
+        }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.tables.productFamilies.map((family: { name: string }) => family.name)).toContain(
+      "Worm Gears",
+    );
+  });
+
   it("returns 400 for invalid input", async () => {
     const response = await POST(
       new Request("http://localhost/api/generate", {

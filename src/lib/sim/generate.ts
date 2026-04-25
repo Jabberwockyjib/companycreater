@@ -1,5 +1,5 @@
 import { generatedScenarioSchema, scenarioInputSchema } from "@/lib/domain/schemas";
-import type { GeneratedScenario, MonthlyRevenue, ScenarioInput } from "@/lib/domain/types";
+import type { CompanyProfile, GeneratedScenario, MonthlyRevenue, ScenarioInput } from "@/lib/domain/types";
 import { buildCompanyProfile } from "./company";
 import { generateCustomers } from "./customers";
 import { generateOrders } from "./orders";
@@ -11,11 +11,29 @@ import { validateScenario } from "./validate";
 
 const BOOKING_REALIZATION_MULTIPLIER = 1.5;
 
-export function generateScenario(input: ScenarioInput): GeneratedScenario {
+export interface GenerateScenarioOptions {
+  researchProfile?: CompanyProfile;
+}
+
+export function generateScenario(
+  input: ScenarioInput,
+  options: GenerateScenarioOptions = {},
+): GeneratedScenario {
   const parsedInput = scenarioInputSchema.parse(input);
   const random = new SeededRandom(parsedInput.seed);
-  const profile = buildCompanyProfile(parsedInput);
-  const { productFamilies, skus } = generateProducts(parsedInput, random);
+  const baseProfile = buildCompanyProfile(parsedInput);
+  const profile = options.researchProfile
+    ? {
+        ...baseProfile,
+        claims: [
+          ...options.researchProfile.claims,
+          ...baseProfile.claims.filter(
+            (claim) => !options.researchProfile?.claims.some((item) => item.id === claim.id),
+          ),
+        ],
+      }
+    : baseProfile;
+  const { productFamilies, skus } = generateProducts(parsedInput, random, options.researchProfile);
   const { territories, salespeople } = generateSalesOrg(parsedInput, random);
   const { customers, contacts, lifecycleEvents } = generateCustomers(
     parsedInput,

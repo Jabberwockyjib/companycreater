@@ -1,9 +1,26 @@
 import { NextResponse } from "next/server";
-import { scenarioInputSchema } from "@/lib/domain/schemas";
+import { z } from "zod";
+import { companyProfileSchema, scenarioInputSchema } from "@/lib/domain/schemas";
 import type { GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
-import { generateScenario } from "@/lib/sim/generate";
+import { generateScenario, type GenerateScenarioOptions } from "@/lib/sim/generate";
 
-type ScenarioGenerator = (input: ScenarioInput) => GeneratedScenario;
+type ScenarioGenerator = (input: ScenarioInput, options?: GenerateScenarioOptions) => GeneratedScenario;
+
+const generationRequestSchema = z.union([
+  scenarioInputSchema.transform((input) => ({
+    input,
+    options: {},
+  })),
+  z
+    .object({
+      input: scenarioInputSchema,
+      researchProfile: companyProfileSchema.optional(),
+    })
+    .transform(({ input, researchProfile }) => ({
+      input,
+      options: researchProfile ? { researchProfile } : {},
+    })),
+]);
 
 export async function handleGenerateRequest(
   request: Request,
@@ -17,14 +34,14 @@ export async function handleGenerateRequest(
     return NextResponse.json({ error: "Invalid generation input" }, { status: 400 });
   }
 
-  const parsedInput = scenarioInputSchema.safeParse(body);
+  const parsedRequest = generationRequestSchema.safeParse(body);
 
-  if (!parsedInput.success) {
+  if (!parsedRequest.success) {
     return NextResponse.json({ error: "Invalid generation input" }, { status: 400 });
   }
 
   try {
-    const scenario = generator(parsedInput.data);
+    const scenario = generator(parsedRequest.data.input, parsedRequest.data.options);
     return NextResponse.json(scenario);
   } catch {
     return NextResponse.json({ error: "Generation request failed" }, { status: 500 });

@@ -60,7 +60,11 @@ export default function Home() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify(
+          researchProfile && input.mode === "real_company"
+            ? { input, researchProfile }
+            : input,
+        ),
       });
 
       if (!response.ok) {

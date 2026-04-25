@@ -97,6 +97,50 @@ describe("generateScenario", () => {
     ).toBe(true);
   });
 
+  it("grounds product families and SKU names in AI research product signals", () => {
+    const scenario = generateScenario(
+      { ...defaultScenarioInput, mode: "real_company", skuCount: 36 },
+      {
+        researchProfile: {
+          companyName: "Cleveland Gear Company",
+          industry: "Industrial Components",
+          revenueTarget: defaultScenarioInput.revenueTarget,
+          regions: defaultScenarioInput.regions,
+          channels: defaultScenarioInput.channels,
+          claims: [
+            {
+              id: "ai_product_1",
+              field: "ai.productFamilies",
+              value: "AI extracted product families: Worm Gears",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_product_2",
+              field: "ai.productFamilies",
+              value: "AI extracted product families: Speed Reducers",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_language_1",
+              field: "ai.industryLanguage",
+              value: "AI extracted industry language: Product Availability",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+          ],
+        },
+      },
+    );
+    const familyNames = scenario.tables.productFamilies.map((family) => family.name);
+    const skuNames = scenario.tables.skus.map((sku) => sku.name);
+
+    expect(familyNames).toContain("Worm Gears");
+    expect(familyNames).toContain("Speed Reducers");
+    expect(skuNames.some((name) => name.startsWith("Worm Gears"))).toBe(true);
+  });
+
   it("gives lost customers pre-loss orders and stops orders after the loss date", () => {
     const scenario = generateScenario({
       ...defaultScenarioInput,

@@ -1,4 +1,4 @@
-import type { ProductFamily, ScenarioInput, Sku } from "@/lib/domain/types";
+import type { CompanyProfile, ProductFamily, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
 
 const FAMILY_NAMES = [
@@ -13,14 +13,24 @@ const FAMILY_NAMES = [
 const MARGIN_BANDS = ["low", "medium", "high"] as const;
 const LIFECYCLE_STATUSES = ["active", "new_launch", "discontinued"] as const;
 
-export function generateProducts(input: ScenarioInput, random: SeededRandom): {
+export function generateProducts(
+  input: ScenarioInput,
+  random: SeededRandom,
+  profile?: CompanyProfile,
+): {
   productFamilies: ProductFamily[];
   skus: Sku[];
 } {
-  const familyCount = Math.min(FAMILY_NAMES.length, Math.max(3, Math.ceil(input.skuCount / 35)));
+  const researchedFamilyNames = extractResearchedFamilyNames(profile);
+  const fallbackFamilyNames = FAMILY_NAMES.filter((name) => !researchedFamilyNames.includes(name));
+  const familyCount = Math.min(
+    Math.max(FAMILY_NAMES.length, researchedFamilyNames.length),
+    Math.max(3, Math.ceil(input.skuCount / 35), researchedFamilyNames.length),
+  );
+  const familyNames = [...researchedFamilyNames, ...fallbackFamilyNames].slice(0, familyCount);
   const productFamilies = Array.from({ length: familyCount }, (_, index): ProductFamily => ({
     id: `family_${index + 1}`,
-    name: FAMILY_NAMES[index] ?? `Product Family ${index + 1}`,
+    name: familyNames[index] ?? `Product Family ${index + 1}`,
     marginBand: MARGIN_BANDS[index % MARGIN_BANDS.length],
     seasonalityWeight: round(input.seasonality === "high" ? random.money(0.75, 1.45) : random.money(0.9, 1.2)),
   }));
@@ -43,6 +53,35 @@ export function generateProducts(input: ScenarioInput, random: SeededRandom): {
   });
 
   return { productFamilies, skus };
+}
+
+function extractResearchedFamilyNames(profile?: CompanyProfile): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      profile.claims
+        .filter((claim) => claim.field === "ai.productFamilies")
+        .map((claim) => normalizeProductFamilyName(claim.value))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ].slice(0, 8);
+}
+
+function normalizeProductFamilyName(value: string): string | undefined {
+  const rawName = value.includes(":") ? value.split(":").at(-1) : value;
+  const normalized = rawName
+    ?.replace(/\s+/g, " ")
+    .replace(/[.。]+$/g, "")
+    .trim();
+
+  if (!normalized || normalized.length < 2) {
+    return undefined;
+  }
+
+  return normalized.slice(0, 80);
 }
 
 function round(value: number): number {
