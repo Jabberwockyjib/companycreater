@@ -157,16 +157,28 @@ describe("research source hardening", () => {
   it("requires Gemini configuration when the Gemini provider is enabled", () => {
     vi.stubEnv("LLM_PROVIDER", "gemini");
     vi.stubEnv("LLM_MODEL", "");
+    vi.stubEnv("GEMINI_API_KEY", "");
     vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
 
     expect(() => getLlmProvider()).toThrow("LLM_MODEL is required");
     vi.unstubAllEnvs();
   });
 
-  it("extracts structured JSON through the Gemini provider", async () => {
+  it("requires a Gemini API key when the Gemini model is configured", () => {
     vi.stubEnv("LLM_PROVIDER", "gemini");
     vi.stubEnv("LLM_MODEL", "gemini-test-model");
-    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-key");
+    vi.stubEnv("GEMINI_API_KEY", "");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
+
+    expect(() => getLlmProvider()).toThrow("GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY");
+    vi.unstubAllEnvs();
+  });
+
+  it("extracts structured JSON through the Gemini provider with GEMINI_API_KEY", async () => {
+    vi.stubEnv("LLM_PROVIDER", "gemini");
+    vi.stubEnv("LLM_MODEL", "gemini-test-model");
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
     const fetchSpy = vi.fn(
       async () =>
         new Response(

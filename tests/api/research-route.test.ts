@@ -11,7 +11,8 @@ describe("/api/research", () => {
   it("adds Gemini research extraction claims when AI research is enabled", async () => {
     vi.stubEnv("LLM_PROVIDER", "gemini");
     vi.stubEnv("LLM_MODEL", "gemini-test-model");
-    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-key");
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
     vi.stubGlobal(
       "fetch",
       vi.fn(

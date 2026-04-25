@@ -27,8 +27,10 @@ The app runs without an LLM when `LLM_PROVIDER=none`. To enable Gemini-backed pu
 ```bash
 LLM_PROVIDER=gemini
 LLM_MODEL=<gemini-model-id>
-GOOGLE_GENERATIVE_AI_API_KEY=<your-key>
+GEMINI_API_KEY=<your-key>
 ```
+
+`GOOGLE_GENERATIVE_AI_API_KEY` is also supported as an alias.
 
 The model is only used to extract public signals such as product families, markets, geographies, launches, buyer segments, and industry language. Private sales, customer, order, quota, return, rejection, churn, and revenue records remain synthetic.
 

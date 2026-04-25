@@ -17,14 +17,16 @@ class GeminiProvider implements LlmProvider {
 
   constructor() {
     this.model = process.env.LLM_MODEL || "";
-    this.apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
+    this.apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
 
     if (!this.model) {
       throw new Error("LLM_MODEL is required when LLM_PROVIDER=gemini.");
     }
 
     if (!this.apiKey) {
-      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is required when LLM_PROVIDER=gemini.");
+      throw new Error(
+        "GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY is required when LLM_PROVIDER=gemini.",
+      );
     }
   }
 
