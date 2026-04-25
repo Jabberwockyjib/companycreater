@@ -55,6 +55,48 @@ describe("generateScenario", () => {
     expect(churnReport?.toLowerCase()).not.toContain("lost customer lifecycle events were generated");
   });
 
+  it("assigns every customer to a valid account owner and keeps orders with that owner", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const salespersonIds = new Set(scenario.tables.salespeople.map((salesperson) => salesperson.id));
+    const territoryIds = new Set(scenario.tables.territories.map((territory) => territory.id));
+    const customersById = new Map(
+      scenario.tables.customers.map((customer) => [customer.id, customer]),
+    );
+
+    expect(scenario.tables.customers.every((customer) => salespersonIds.has(customer.accountOwnerId))).toBe(
+      true,
+    );
+    expect(scenario.tables.customers.every((customer) => territoryIds.has(customer.territoryId))).toBe(
+      true,
+    );
+    expect(
+      scenario.tables.orders.every((order) => {
+        const customer = customersById.get(order.customerId);
+
+        return customer?.accountOwnerId === order.salespersonId;
+      }),
+    ).toBe(true);
+  });
+
+  it("ties every order to a closed-won opportunity for the same customer and salesperson", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const opportunitiesById = new Map(
+      scenario.tables.opportunities.map((opportunity) => [opportunity.id, opportunity]),
+    );
+
+    expect(
+      scenario.tables.orders.every((order) => {
+        const opportunity = opportunitiesById.get(order.opportunityId);
+
+        return (
+          opportunity?.stage === "closed_won" &&
+          opportunity.customerId === order.customerId &&
+          opportunity.salespersonId === order.salespersonId
+        );
+      }),
+    ).toBe(true);
+  });
+
   it("does not create returns, rejections, or credits when adjustment rates are zero", () => {
     const scenario = generateScenario({
       ...defaultScenarioInput,

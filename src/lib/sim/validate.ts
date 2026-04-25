@@ -7,10 +7,39 @@ export function validateScenario(
   const messages: ValidationMessage[] = [];
   const orderIds = new Set(scenario.tables.orders.map((order) => order.id));
   const skuIds = new Set(scenario.tables.skus.map((sku) => sku.id));
+  const productFamilyIds = new Set(scenario.tables.productFamilies.map((family) => family.id));
   const customerIds = new Set(scenario.tables.customers.map((customer) => customer.id));
+  const customersById = new Map(scenario.tables.customers.map((customer) => [customer.id, customer]));
+  const salespeopleById = new Map(
+    scenario.tables.salespeople.map((salesperson) => [salesperson.id, salesperson]),
+  );
+  const opportunityById = new Map(
+    scenario.tables.opportunities.map((opportunity) => [opportunity.id, opportunity]),
+  );
+  const orderById = new Map(scenario.tables.orders.map((order) => [order.id, order]));
   const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((revenue) => revenue.month));
 
   validateRevenue(messages, scenario, input);
+
+  for (const sku of scenario.tables.skus) {
+    if (!productFamilyIds.has(sku.familyId)) {
+      messages.push({
+        code: "missing_product_family_reference",
+        severity: "error",
+        message: `SKU ${sku.id} references missing product family ${sku.familyId}.`,
+      });
+    }
+  }
+
+  for (const customer of scenario.tables.customers) {
+    if (!salespeopleById.has(customer.accountOwnerId)) {
+      messages.push({
+        code: "missing_account_owner_reference",
+        severity: "error",
+        message: `Customer ${customer.id} references missing account owner ${customer.accountOwnerId}.`,
+      });
+    }
+  }
 
   for (const lineItem of scenario.tables.orderLineItems) {
     if (!orderIds.has(lineItem.orderId)) {
@@ -31,11 +60,118 @@ export function validateScenario(
   }
 
   for (const order of scenario.tables.orders) {
-    if (!customerIds.has(order.customerId)) {
+    const customer = customersById.get(order.customerId);
+    const salesperson = salespeopleById.get(order.salespersonId);
+    const opportunity = opportunityById.get(order.opportunityId);
+
+    if (!customer) {
       messages.push({
         code: "missing_customer_reference",
         severity: "error",
         message: `Order ${order.id} references missing customer ${order.customerId}.`,
+      });
+    }
+
+    if (!salesperson) {
+      messages.push({
+        code: "missing_salesperson_reference",
+        severity: "error",
+        message: `Order ${order.id} references missing salesperson ${order.salespersonId}.`,
+      });
+    }
+
+    if (customer && customer.accountOwnerId !== order.salespersonId) {
+      messages.push({
+        code: "order_account_owner_mismatch",
+        severity: "error",
+        message: `Order ${order.id} uses ${order.salespersonId}, but customer ${customer.id} is owned by ${customer.accountOwnerId}.`,
+      });
+    }
+
+    if (!opportunity) {
+      messages.push({
+        code: "missing_order_opportunity_reference",
+        severity: "error",
+        message: `Order ${order.id} references missing opportunity ${order.opportunityId}.`,
+      });
+    } else if (
+      opportunity.stage !== "closed_won" ||
+      opportunity.customerId !== order.customerId ||
+      opportunity.salespersonId !== order.salespersonId
+    ) {
+      messages.push({
+        code: "order_opportunity_mismatch",
+        severity: "error",
+        message: `Order ${order.id} is not tied to a closed-won opportunity for the same customer and salesperson.`,
+      });
+    }
+
+    const lineSubtotal = round(
+      scenario.tables.orderLineItems
+        .filter((lineItem) => lineItem.orderId === order.id)
+        .reduce((total, lineItem) => total + lineItem.lineTotal, 0),
+    );
+    const expectedTotal = order.status === "cancelled" ? 0 : round(lineSubtotal - order.discountAmount);
+
+    if (round(order.subtotal) !== lineSubtotal || round(order.total) !== expectedTotal) {
+      messages.push({
+        code: "order_total_mismatch",
+        severity: "error",
+        message: `Order ${order.id} totals do not reconcile to line items and discount amount.`,
+      });
+    }
+  }
+
+  for (const invoice of scenario.tables.invoices) {
+    const order = orderById.get(invoice.orderId);
+
+    if (!order) {
+      messages.push({
+        code: "missing_invoice_order_reference",
+        severity: "error",
+        message: `Invoice ${invoice.id} references missing order ${invoice.orderId}.`,
+      });
+    } else if (round(invoice.total) !== round(order.total)) {
+      messages.push({
+        code: "invoice_total_mismatch",
+        severity: "error",
+        message: `Invoice ${invoice.id} total does not match order ${order.id}.`,
+      });
+    }
+  }
+
+  for (const returnRecord of scenario.tables.returns) {
+    const order = orderById.get(returnRecord.orderId);
+
+    if (!order) {
+      messages.push({
+        code: "missing_return_order_reference",
+        severity: "error",
+        message: `Return ${returnRecord.id} references missing order ${returnRecord.orderId}.`,
+      });
+    } else if (returnRecord.customerId !== order.customerId) {
+      messages.push({
+        code: "return_customer_mismatch",
+        severity: "error",
+        message: `Return ${returnRecord.id} customer does not match order ${order.id}.`,
+      });
+    }
+  }
+
+  for (const rejection of scenario.tables.rejections) {
+    const order = orderById.get(rejection.orderId);
+
+    if (!order) {
+      messages.push({
+        code: "missing_rejection_order_reference",
+        severity: "error",
+        message: `Rejection ${rejection.id} references missing order ${rejection.orderId}.`,
+      });
+    } else if (rejection.customerId !== order.customerId) {
+      messages.push({
+        code: "rejection_customer_mismatch",
+        severity: "error",
+        message: `Rejection ${rejection.id} customer does not match order ${order.id}.`,
       });
     }
   }
@@ -48,6 +184,35 @@ export function validateScenario(
         code: "missing_credit_month",
         severity: "error",
         message: `Credit ${credit.id} falls in ${creditMonth}, which is missing from monthly revenue.`,
+      });
+    }
+
+    if (!customerIds.has(credit.customerId)) {
+      messages.push({
+        code: "missing_credit_customer_reference",
+        severity: "error",
+        message: `Credit ${credit.id} references missing customer ${credit.customerId}.`,
+      });
+    }
+
+    const source =
+      credit.sourceType === "return"
+        ? scenario.tables.returns.find((returnRecord) => returnRecord.id === credit.sourceId)
+        : credit.sourceType === "rejection"
+          ? scenario.tables.rejections.find((rejection) => rejection.id === credit.sourceId)
+          : undefined;
+
+    if (!source && credit.sourceType !== "commercial_concession") {
+      messages.push({
+        code: "missing_credit_source_reference",
+        severity: "error",
+        message: `Credit ${credit.id} references missing ${credit.sourceType} source ${credit.sourceId}.`,
+      });
+    } else if (source && source.customerId !== credit.customerId) {
+      messages.push({
+        code: "credit_customer_mismatch",
+        severity: "error",
+        message: `Credit ${credit.id} customer does not match source ${credit.sourceId}.`,
       });
     }
   }
@@ -86,4 +251,8 @@ function validateRevenue(
       tolerance,
     )}.`,
   });
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
 }

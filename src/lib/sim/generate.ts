@@ -5,7 +5,7 @@ import { generateCustomers } from "./customers";
 import { generateOrders } from "./orders";
 import { generateProducts } from "./products";
 import { SeededRandom } from "./random";
-import { generateSales } from "./sales";
+import { generateOpportunities, generateSalesOrg } from "./sales";
 import { generateSupply } from "./supply";
 import { validateScenario } from "./validate";
 
@@ -16,8 +16,14 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
   const random = new SeededRandom(parsedInput.seed);
   const profile = buildCompanyProfile(parsedInput);
   const { productFamilies, skus } = generateProducts(parsedInput, random);
-  const { customers, contacts, lifecycleEvents } = generateCustomers(parsedInput, random);
-  const { territories, salespeople, opportunities } = generateSales(parsedInput, random, customers);
+  const { territories, salespeople } = generateSalesOrg(parsedInput, random);
+  const { customers, contacts, lifecycleEvents } = generateCustomers(
+    parsedInput,
+    random,
+    salespeople,
+    territories,
+  );
+  const opportunities = generateOpportunities(parsedInput, random, customers, salespeople);
   const { orders, orderLineItems, invoices, monthlyRevenue } = generateOrders(
     {
       ...parsedInput,
@@ -28,6 +34,7 @@ export function generateScenario(input: ScenarioInput): GeneratedScenario {
     customers,
     salespeople,
     skus,
+    opportunities,
   );
   const { supplyEvents, returns, rejections, credits } = generateSupply(
     parsedInput,

@@ -65,6 +65,9 @@ export interface Customer {
   name: string;
   industry: string;
   region: string;
+  territoryId: string;
+  accountOwnerId: string;
+  accountStatus: "active" | "lost";
   segment: "enterprise" | "mid_market" | "commercial";
   annualPotential: number;
   story: string;
@@ -109,6 +112,7 @@ export interface Order {
   id: string;
   customerId: string;
   salespersonId: string;
+  opportunityId: string;
   orderDate: string;
   status: "fulfilled" | "partial" | "backordered" | "cancelled";
   subtotal: number;

@@ -1,4 +1,11 @@
-import type { Contact, Customer, LifecycleEvent, ScenarioInput } from "@/lib/domain/types";
+import type {
+  Contact,
+  Customer,
+  LifecycleEvent,
+  Salesperson,
+  ScenarioInput,
+  Territory,
+} from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
 
 const COMPANY_PREFIXES = ["Atlas", "Beacon", "Cobalt", "Delta", "Evergreen", "Frontier", "Granite", "Harbor", "Keystone", "Liberty", "Meridian", "Northstar"];
@@ -9,7 +16,12 @@ const SEGMENTS = ["enterprise", "mid_market", "commercial"] as const;
 const RISKS = ["low", "medium", "high"] as const;
 const ROLES = ["economic_buyer", "technical_evaluator", "procurement", "operations"] as const;
 
-export function generateCustomers(input: ScenarioInput, random: SeededRandom): {
+export function generateCustomers(
+  input: ScenarioInput,
+  random: SeededRandom,
+  salespeople: Salesperson[],
+  territories: Territory[],
+): {
   customers: Customer[];
   contacts: Contact[];
   lifecycleEvents: LifecycleEvent[];
@@ -24,6 +36,16 @@ export function generateCustomers(input: ScenarioInput, random: SeededRandom): {
     const id = `customer_${index + 1}`;
     const name = `${random.pick(COMPANY_PREFIXES)} ${random.pick(COMPANY_SUFFIXES)} ${index + 1}`;
     const region = input.regions[index % input.regions.length] as string;
+    const territory =
+      territories.find((candidate) => candidate.region === region) ??
+      (territories[index % territories.length] as Territory);
+    const territorySalespeople = salespeople.filter(
+      (salesperson) => salesperson.territoryId === territory.id,
+    );
+    const accountOwner =
+      territorySalespeople[index % territorySalespeople.length] ??
+      (salespeople[index % salespeople.length] as Salesperson);
+    const accountStatus = index < lostCount ? "lost" : "active";
     const segment = random.pick(SEGMENTS);
     const annualPotential = segment === "enterprise" ? random.money(450000, 1800000) : segment === "mid_market" ? random.money(180000, 650000) : random.money(50000, 240000);
 
@@ -32,6 +54,9 @@ export function generateCustomers(input: ScenarioInput, random: SeededRandom): {
       name,
       industry: input.industry,
       region,
+      territoryId: territory.id,
+      accountOwnerId: accountOwner.id,
+      accountStatus,
       segment,
       annualPotential,
       story: `${name} buys ${input.industry.toLowerCase()} products through ${region}.`,

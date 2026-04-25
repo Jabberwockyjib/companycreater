@@ -1,4 +1,4 @@
-import type { Customer, Invoice, MonthlyRevenue, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
+import type { Customer, Invoice, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
 
 const ORDER_STATUSES = ["fulfilled", "partial", "backordered", "cancelled"] as const;
@@ -9,6 +9,7 @@ export function generateOrders(
   customers: Customer[],
   salespeople: Salesperson[],
   skus: Sku[],
+  opportunities: Opportunity[],
 ): {
   orders: Order[];
   orderLineItems: OrderLineItem[];
@@ -19,12 +20,29 @@ export function generateOrders(
   const orderLineItems: OrderLineItem[] = [];
   const invoices: Invoice[] = [];
   const monthlyRevenue = buildMonthlyRevenue(input);
-  const orderTarget = Math.max(input.customerCount + 1, Math.round(input.customerCount * input.years * 1.45));
+  const orderableCustomers = customers.filter((customer) => customer.accountStatus === "active");
+  const closedWonOpportunityByCustomer = new Map(
+    opportunities
+      .filter((opportunity) => opportunity.stage === "closed_won")
+      .map((opportunity) => [opportunity.customerId, opportunity]),
+  );
+  const orderTarget = Math.max(
+    orderableCustomers.length + 1,
+    Math.round(orderableCustomers.length * input.years * 1.45),
+  );
   const targetAverageOrder = input.revenueTarget / Math.max(1, orderTarget);
 
   for (let index = 0; index < orderTarget; index += 1) {
-    const customer = customers[index % customers.length] as Customer;
-    const salesperson = salespeople[index % salespeople.length] as Salesperson;
+    const customer = orderableCustomers[index % orderableCustomers.length] as Customer;
+    const salesperson =
+      salespeople.find((candidate) => candidate.id === customer.accountOwnerId) ??
+      (salespeople[index % salespeople.length] as Salesperson);
+    const opportunity = closedWonOpportunityByCustomer.get(customer.id);
+
+    if (!opportunity) {
+      throw new Error(`Customer ${customer.id} does not have a closed-won opportunity`);
+    }
+
     const monthOffset = index % (input.years * 12);
     const year = input.startYear + Math.floor(monthOffset / 12);
     const month = (monthOffset % 12) + 1;
@@ -63,6 +81,7 @@ export function generateOrders(
       id: `order_${index + 1}`,
       customerId: customer.id,
       salespersonId: salesperson.id,
+      opportunityId: opportunity.id,
       orderDate,
       status,
       subtotal: round(subtotal),
