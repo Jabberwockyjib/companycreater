@@ -1,7 +1,32 @@
 import type { GeneratedScenario } from "@/lib/domain/types";
 
+function countRows(scenario: GeneratedScenario) {
+  return Object.fromEntries(
+    Object.entries(scenario.tables).map(([tableName, rows]) => [tableName, rows.length]),
+  );
+}
+
+function summarizeValidations(scenario: GeneratedScenario) {
+  return scenario.validations.reduce(
+    (summary, validation) => ({
+      ...summary,
+      [validation.severity]: summary[validation.severity] + 1,
+    }),
+    { info: 0, warning: 0, error: 0 },
+  );
+}
+
 export function scenarioToJsonBundle(scenario: GeneratedScenario) {
   return {
+    manifest: {
+      scenarioId: scenario.metadata.scenarioId,
+      generatedAt: scenario.metadata.generatedAt,
+      exportedAt: new Date().toISOString(),
+      mode: scenario.metadata.mode,
+      companyName: scenario.profile.companyName,
+      rowCounts: countRows(scenario),
+      validationSummary: summarizeValidations(scenario),
+    },
     scenario,
     assumptionsReport: scenario.assumptionsReport,
     dataDictionary: {

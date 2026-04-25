@@ -4,17 +4,52 @@ import { useState } from "react";
 import { DataPreview } from "@/components/generator/data-preview";
 import { ExportPanel } from "@/components/generator/export-panel";
 import { ProfileReview } from "@/components/generator/profile-review";
+import { ResearchPanel } from "@/components/generator/research-panel";
 import { ScenarioDashboard } from "@/components/generator/scenario-dashboard";
 import { ScenarioForm } from "@/components/generator/scenario-form";
 import { ValidationPanel } from "@/components/generator/validation-panel";
 import { defaultScenarioInput } from "@/lib/domain/defaults";
-import type { GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
+import type { CompanyProfile, GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
+import type { ResearchSource } from "@/lib/research/sources";
 
 export default function Home() {
   const [input, setInput] = useState<ScenarioInput>(defaultScenarioInput);
   const [scenario, setScenario] = useState<GeneratedScenario | null>(null);
+  const [researchProfile, setResearchProfile] = useState<CompanyProfile | null>(null);
+  const [researchSources, setResearchSources] = useState<ResearchSource[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
+
+  async function research() {
+    setIsResearching(true);
+    setResearchError(null);
+
+    try {
+      const response = await fetch("/api/research", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        setResearchError("Research input is outside the supported MVP bounds.");
+        return;
+      }
+
+      const payload = (await response.json()) as {
+        profile: CompanyProfile;
+        sources: ResearchSource[];
+      };
+      setResearchProfile(payload.profile);
+      setResearchSources(payload.sources);
+    } catch {
+      setResearchError("Research failed.");
+    } finally {
+      setIsResearching(false);
+    }
+  }
 
   async function generate() {
     setIsGenerating(true);
@@ -32,7 +67,28 @@ export default function Home() {
         return;
       }
 
-      setScenario((await response.json()) as GeneratedScenario);
+      const generatedScenario = (await response.json()) as GeneratedScenario;
+      const mergedScenario =
+        researchProfile && input.mode === "real_company"
+          ? {
+              ...generatedScenario,
+              profile: {
+                ...generatedScenario.profile,
+                claims: [
+                  ...researchProfile.claims,
+                  ...generatedScenario.profile.claims.filter(
+                    (claim) => !researchProfile.claims.some((item) => item.id === claim.id),
+                  ),
+                ],
+              },
+              assumptionsReport: [
+                ...generatedScenario.assumptionsReport,
+                "Public research context was attached as labeled profile claims. Generated operating data remains synthetic.",
+              ],
+            }
+          : generatedScenario;
+
+      setScenario(mergedScenario);
     } catch {
       setError("Generation failed.");
     } finally {
@@ -64,6 +120,13 @@ export default function Home() {
           error={error}
           onChange={setInput}
           onGenerate={generate}
+        />
+        <ResearchPanel
+          profile={researchProfile}
+          sources={researchSources}
+          isResearching={isResearching}
+          error={researchError}
+          onResearch={research}
         />
         <ScenarioDashboard scenario={scenario} />
         <ValidationPanel scenario={scenario} />

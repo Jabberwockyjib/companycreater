@@ -73,6 +73,21 @@ export function ScenarioForm({
           onChange={(revenueTarget) => onChange({ ...value, revenueTarget })}
         />
         <NumberField
+          label="Seed"
+          value={value.seed}
+          onChange={(seed) => onChange({ ...value, seed })}
+        />
+        <NumberField
+          label="Start Year"
+          value={value.startYear}
+          onChange={(startYear) => onChange({ ...value, startYear })}
+        />
+        <NumberField
+          label="Years"
+          value={value.years}
+          onChange={(years) => onChange({ ...value, years })}
+        />
+        <NumberField
           label="Customers"
           value={value.customerCount}
           onChange={(customerCount) => onChange({ ...value, customerCount })}
@@ -121,11 +136,47 @@ export function ScenarioForm({
           onChange={(returnsRate) => onChange({ ...value, returnsRate })}
         />
         <RateField
+          label={`Rejections ${formatPercent(value.rejectionRate)}`}
+          value={value.rejectionRate}
+          max={0.1}
+          onChange={(rejectionRate) => onChange({ ...value, rejectionRate })}
+        />
+        <RateField
           label={`Churn ${formatPercent(value.churnRate)}`}
           value={value.churnRate}
           max={0.3}
           onChange={(churnRate) => onChange({ ...value, churnRate })}
         />
+        <Field label="Regions">
+          <Input
+            value={value.regions.join(", ")}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                regions: event.target.value
+                  .split(",")
+                  .map((region) => region.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </Field>
+        <Field label="Channels">
+          <Input
+            value={value.channels.join(", ")}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                channels: event.target.value
+                  .split(",")
+                  .map((channel) => channel.trim())
+                  .filter((channel): channel is ScenarioInput["channels"][number] =>
+                    ["direct", "distributor", "partner", "ecommerce"].includes(channel),
+                  ),
+              })
+            }
+          />
+        </Field>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-100 pt-4">
         <p className="text-sm text-red-700">{error}</p>

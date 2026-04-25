@@ -22,6 +22,8 @@ describe("exports", () => {
     const bundle = scenarioToJsonBundle(scenario);
 
     expect(bundle.scenario.metadata.scenarioId).toBe(scenario.metadata.scenarioId);
+    expect(bundle.manifest.rowCounts.customers).toBe(scenario.tables.customers.length);
+    expect(bundle.manifest.validationSummary.error).toBe(0);
     expect(bundle.dataDictionary.customers).toContain("Synthetic customer accounts");
     expect(bundle.assumptionsReport).toEqual(scenario.assumptionsReport);
   });
@@ -33,6 +35,7 @@ describe("exports", () => {
 
     expect(zip.file("csv/customers.csv")).toBeTruthy();
     expect(zip.file("scenario.json")).toBeTruthy();
+    expect(zip.file("manifest.json")).toBeTruthy();
     expect(zip.file("assumptions_report.txt")).toBeTruthy();
   });
 
