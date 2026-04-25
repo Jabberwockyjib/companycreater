@@ -35,15 +35,21 @@ export function ExportPanel({ scenario }: { scenario: GeneratedScenario | null }
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-zinc-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div>
-        <h2 className="text-sm font-semibold">Export</h2>
-        <p className="mt-1 text-sm text-zinc-600">
+        <h2 className="text-xs font-semibold uppercase text-slate-900">Export</h2>
+        <p className="mt-2 text-sm text-slate-600">
           Download CSV files, JSON bundle, and the assumptions report.
         </p>
-        {status ? <p className="mt-1 text-xs text-zinc-500">{status}</p> : null}
+        {scenario ? (
+          <p className="mt-1 text-xs text-slate-500">
+            Includes {Object.keys(scenario.tables).length} tables and{" "}
+            {scenario.tables.orders.length.toLocaleString()} orders.
+          </p>
+        ) : null}
+        {status ? <p className="mt-2 text-xs text-emerald-700">{status}</p> : null}
       </div>
-      <Button disabled={!scenario} onClick={exportScenario}>
+      <Button className="mt-4 w-full bg-teal-700 hover:bg-teal-800" disabled={!scenario} onClick={exportScenario}>
         Export ZIP
       </Button>
     </section>

@@ -97,45 +97,78 @@ export default function Home() {
     }
   }
 
+  const aiClaimCount =
+    researchProfile?.claims.filter((claim) => claim.field.startsWith("ai.")).length ?? 0;
+  const scenarioStatus = scenario ? "Scenario ready" : isGenerating ? "Generating" : "No run yet";
+
   return (
-    <main className="min-h-screen bg-zinc-50 text-zinc-950">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6">
-        <header className="border-b border-zinc-200 pb-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold">Sales Data Generator</h1>
-              <p className="mt-1 max-w-3xl text-sm text-zinc-600">
-                Generate synthetic CRM, BI, and sales operations data for B2B product
-                companies.
-              </p>
+    <main className="min-h-screen bg-[#f4f7f7] text-slate-950">
+      <div className="border-b border-slate-200 bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <header className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-lg font-semibold text-white shadow-sm">
+              SD
             </div>
-            <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-sm">
-              $25M-$200M revenue · CRM/BI first · ERP-visible effects
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Sales Data Generator</h1>
+              <p className="text-xs text-slate-500">CRM · BI · ERP synthetic data workbench</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill label="AI Research" value={isResearching ? "Running" : "Ready"} active />
+            <StatusPill label="AI Claims" value={aiClaimCount.toLocaleString()} />
+            <StatusPill label="Data Engine" value={scenarioStatus} />
+            <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+              $25M-$200M revenue · public facts labeled
             </div>
           </div>
         </header>
+      </div>
 
-        <ScenarioForm
-          value={input}
-          isGenerating={isGenerating}
-          error={error}
-          onChange={setInput}
-          onGenerate={generate}
-        />
-        <ResearchPanel
-          profile={researchProfile}
-          sources={researchSources}
-          isResearching={isResearching}
-          error={researchError}
-          onResearch={research}
-        />
-        <ScenarioDashboard scenario={scenario} />
-        <ValidationPanel scenario={scenario} />
-        <ProfileReview scenario={scenario} />
-        <DataPreview scenario={scenario} />
-        <ScenarioLibrary scenario={scenario} onLoad={setScenario} />
-        <ExportPanel scenario={scenario} />
+      <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6">
+        <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)_320px]">
+          <aside>
+            <ScenarioForm
+              value={input}
+              isGenerating={isGenerating}
+              error={error}
+              onChange={setInput}
+              onGenerate={generate}
+            />
+          </aside>
+          <section className="grid gap-4">
+            <ScenarioDashboard scenario={scenario} />
+            <DataPreview scenario={scenario} />
+            <ProfileReview scenario={scenario} />
+          </section>
+          <aside>
+            <ResearchPanel
+              profile={researchProfile}
+              sources={researchSources}
+              isResearching={isResearching}
+              error={researchError}
+              onResearch={research}
+            />
+          </aside>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px_420px]">
+          <ValidationPanel scenario={scenario} />
+          <ScenarioLibrary scenario={scenario} onLoad={setScenario} />
+          <ExportPanel scenario={scenario} />
+        </div>
       </div>
     </main>
+  );
+}
+
+function StatusPill({ label, value, active = false }: { label: string; value: string; active?: boolean }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <div className="text-slate-500">{label}</div>
+      <div className="mt-0.5 flex items-center gap-1.5 font-medium text-slate-900">
+        {active ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> : null}
+        {value}
+      </div>
+    </div>
   );
 }
