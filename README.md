@@ -11,6 +11,8 @@ npm run dev
 
 Open http://localhost:3000.
 
+The dev script raises the local file-descriptor limit before starting Next.js to reduce watcher `EMFILE` errors on macOS. For a watcher-free verification pass, run `npm run build` and then `npm start`.
+
 ## Test Commands
 
 ```bash
