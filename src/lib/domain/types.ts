@@ -115,6 +115,9 @@ export interface Order {
   opportunityId: string;
   orderDate: string;
   status: "fulfilled" | "partial" | "backordered" | "cancelled";
+  allocatedQuantity: number;
+  shippedQuantity: number;
+  backorderedQuantity: number;
   subtotal: number;
   discountAmount: number;
   total: number;
@@ -125,9 +128,22 @@ export interface OrderLineItem {
   orderId: string;
   skuId: string;
   quantity: number;
+  allocatedQuantity: number;
+  shippedQuantity: number;
+  backorderedQuantity: number;
   unitPrice: number;
   discountRate: number;
   lineTotal: number;
+}
+
+export interface InventoryPosition {
+  skuId: string;
+  startingOnHand: number;
+  receivedQuantity: number;
+  allocatedQuantity: number;
+  shippedQuantity: number;
+  backorderedQuantity: number;
+  endingOnHand: number;
 }
 
 export interface Invoice {
@@ -221,6 +237,7 @@ export interface GeneratedScenario {
     opportunities: Opportunity[];
     orders: Order[];
     orderLineItems: OrderLineItem[];
+    inventoryPositions: InventoryPosition[];
     invoices: Invoice[];
     monthlyRevenue: MonthlyRevenue[];
     supplyEvents: SupplyEvent[];

@@ -215,7 +215,7 @@ describe("generateScenario", () => {
       expect(lineItem).toBeDefined();
       expect(returnRecord.skuId).toBe(lineItem?.skuId);
       expect(returnRecord.quantity).toBeGreaterThan(0);
-      expect(returnRecord.quantity).toBeLessThanOrEqual(lineItem?.quantity ?? 0);
+      expect(returnRecord.quantity).toBeLessThanOrEqual(lineItem?.shippedQuantity ?? 0);
     }
 
     for (const rejection of scenario.tables.rejections) {
@@ -224,8 +224,55 @@ describe("generateScenario", () => {
       expect(lineItem).toBeDefined();
       expect(rejection.skuId).toBe(lineItem?.skuId);
       expect(rejection.quantity).toBeGreaterThan(0);
-      expect(rejection.quantity).toBeLessThanOrEqual(lineItem?.quantity ?? 0);
+      expect(rejection.quantity).toBeLessThanOrEqual(lineItem?.shippedQuantity ?? 0);
     }
+  });
+
+  it("tracks line-level fulfillment quantities and SKU inventory positions", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+
+    expect(scenario.tables.inventoryPositions).toHaveLength(scenario.tables.skus.length);
+
+    for (const lineItem of scenario.tables.orderLineItems) {
+      expect(lineItem.allocatedQuantity).toBeGreaterThanOrEqual(0);
+      expect(lineItem.shippedQuantity).toBeGreaterThanOrEqual(0);
+      expect(lineItem.backorderedQuantity).toBeGreaterThanOrEqual(0);
+      expect(lineItem.allocatedQuantity + lineItem.backorderedQuantity).toBe(lineItem.quantity);
+      expect(lineItem.shippedQuantity).toBeLessThanOrEqual(lineItem.allocatedQuantity);
+    }
+
+    for (const inventoryPosition of scenario.tables.inventoryPositions) {
+      expect(inventoryPosition.endingOnHand).toBeGreaterThanOrEqual(0);
+      expect(
+        inventoryPosition.startingOnHand +
+          inventoryPosition.receivedQuantity -
+          inventoryPosition.allocatedQuantity,
+      ).toBe(inventoryPosition.endingOnHand);
+    }
+  });
+
+  it("uses high disruption to create real backorders rather than status labels only", () => {
+    const scenario = generateScenario({
+      ...defaultScenarioInput,
+      disruptionLevel: "high",
+      customerCount: 80,
+      skuCount: 16,
+      years: 2,
+    });
+    const orderIdsWithBackorderedLines = new Set(
+      scenario.tables.orderLineItems
+        .filter((lineItem) => lineItem.backorderedQuantity > 0)
+        .map((lineItem) => lineItem.orderId),
+    );
+
+    expect(orderIdsWithBackorderedLines.size).toBeGreaterThan(0);
+    expect(
+      scenario.tables.orders.some(
+        (order) =>
+          orderIdsWithBackorderedLines.has(order.id) &&
+          (order.status === "partial" || order.status === "backordered"),
+      ),
+    ).toBe(true);
   });
 
   it("keeps every credit within the monthly revenue horizon", () => {

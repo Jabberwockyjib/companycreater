@@ -133,4 +133,55 @@ describe("validateScenario", () => {
       ),
     ).toBe(true);
   });
+
+  it("reports order line fulfillment quantities that do not reconcile", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    scenario.tables.orderLineItems[0].backorderedQuantity += 1;
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) =>
+          message.code === "line_fulfillment_quantity_mismatch" &&
+          message.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
+  it("reports return quantities above the shipped quantity for a line item", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const returnRecord = scenario.tables.returns[0];
+    const lineItem = scenario.tables.orderLineItems.find(
+      (candidate) => candidate.id === returnRecord.orderLineItemId,
+    );
+
+    if (!lineItem) {
+      throw new Error("Expected return to reference a generated line item");
+    }
+
+    returnRecord.quantity = lineItem.shippedQuantity + 1;
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) => message.code === "return_line_item_mismatch" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
+  it("reports inventory positions that do not match SKU line fulfillment totals", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    scenario.tables.inventoryPositions[0].allocatedQuantity += 1;
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) =>
+          message.code === "inventory_line_quantity_mismatch" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
 });

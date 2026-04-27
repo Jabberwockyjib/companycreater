@@ -39,7 +39,7 @@ export function ExportPanel({ scenario }: { scenario: GeneratedScenario | null }
       <div>
         <h2 className="text-xs font-semibold uppercase text-slate-900">Export</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Download CSV files, JSON bundle, and the assumptions report.
+          Download CRM, order, inventory, revenue, and adjustment CSV files with the JSON bundle.
         </p>
         {scenario ? (
           <p className="mt-1 text-xs text-slate-500">

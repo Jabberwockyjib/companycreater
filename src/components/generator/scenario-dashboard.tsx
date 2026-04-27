@@ -26,6 +26,18 @@ export function ScenarioDashboard({ scenario }: { scenario: GeneratedScenario | 
 
   const averageOrderValue =
     scenario.tables.orders.length > 0 ? bookedRevenue / scenario.tables.orders.length : 0;
+  const shippedUnits = scenario.tables.inventoryPositions.reduce(
+    (sum, item) => sum + item.shippedQuantity,
+    0,
+  );
+  const backorderedUnits = scenario.tables.inventoryPositions.reduce(
+    (sum, item) => sum + item.backorderedQuantity,
+    0,
+  );
+  const fillRate =
+    shippedUnits + backorderedUnits > 0
+      ? (shippedUnits / (shippedUnits + backorderedUnits)) * 100
+      : 100;
   const maxMonthlyRevenue = Math.max(
     ...scenario.tables.monthlyRevenue.map((month) => month.bookedRevenue),
     1,
@@ -54,13 +66,20 @@ export function ScenarioDashboard({ scenario }: { scenario: GeneratedScenario | 
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Revenue" value={formatCurrency(bookedRevenue)} trend="Booked total" />
         <Metric label="Customers" value={scenario.tables.customers.length.toLocaleString()} trend="Accounts" />
         <Metric label="Orders" value={scenario.tables.orders.length.toLocaleString()} trend="Sales cycle" />
         <Metric label="Avg Order" value={formatCurrency(averageOrderValue)} trend="AOV" />
         <Metric label="SKUs" value={scenario.tables.skus.length.toLocaleString()} trend="Catalog" />
         <Metric label="Credits" value={formatCurrency(creditedRevenue)} trend="Returns/rejects" tone="amber" />
+        <Metric label="Fill Rate" value={`${fillRate.toFixed(1)}%`} trend="Shipped units" tone="teal" />
+        <Metric
+          label="Backorders"
+          value={backorderedUnits.toLocaleString()}
+          trend="Unfilled units"
+          tone={backorderedUnits > 0 ? "amber" : "teal"}
+        />
       </div>
 
       <div className="mt-5 border-t border-slate-100 pt-4">
@@ -94,15 +113,20 @@ function Metric({
   label: string;
   value: string;
   trend: string;
-  tone?: "default" | "amber";
+  tone?: "default" | "amber" | "teal";
 }) {
+  const trendColor =
+    tone === "amber"
+      ? "mt-1 text-xs text-amber-700"
+      : tone === "teal"
+        ? "mt-1 text-xs text-teal-700"
+        : "mt-1 text-xs text-emerald-700";
+
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
       <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-1 text-xl font-semibold text-slate-950">{value}</div>
-      <div className={tone === "amber" ? "mt-1 text-xs text-amber-700" : "mt-1 text-xs text-emerald-700"}>
-        {trend}
-      </div>
+      <div className={trendColor}>{trend}</div>
     </div>
   );
 }

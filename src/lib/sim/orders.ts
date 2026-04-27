@@ -1,7 +1,5 @@
-import type { Customer, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
+import type { Customer, InventoryPosition, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
-
-const ORDER_STATUSES = ["fulfilled", "partial", "backordered", "cancelled"] as const;
 
 export function generateOrders(
   input: ScenarioInput,
@@ -14,6 +12,7 @@ export function generateOrders(
 ): {
   orders: Order[];
   orderLineItems: OrderLineItem[];
+  inventoryPositions: InventoryPosition[];
   invoices: Invoice[];
   monthlyRevenue: MonthlyRevenue[];
 } {
@@ -70,6 +69,9 @@ export function generateOrders(
         orderId: `order_${index + 1}`,
         skuId: sku.id,
         quantity,
+        allocatedQuantity: 0,
+        shippedQuantity: 0,
+        backorderedQuantity: 0,
         unitPrice: sku.unitPrice,
         discountRate,
         lineTotal,
@@ -77,8 +79,7 @@ export function generateOrders(
     }
 
     const discountAmount = round(subtotal * random.money(0, 0.08));
-    const status = index % 17 === 0 ? "backordered" : index % 31 === 0 ? "partial" : random.pick(ORDER_STATUSES);
-    const total = status === "cancelled" ? 0 : round(subtotal - discountAmount);
+    const total = round(subtotal - discountAmount);
     const monthBucket = monthlyRevenue.find((row) => row.month === `${year}-${String(month).padStart(2, "0")}`);
 
     if (monthBucket) {
@@ -92,7 +93,10 @@ export function generateOrders(
       salespersonId: salesperson.id,
       opportunityId: opportunity.id,
       orderDate,
-      status,
+      status: "fulfilled",
+      allocatedQuantity: 0,
+      shippedQuantity: 0,
+      backorderedQuantity: 0,
       subtotal: round(subtotal),
       discountAmount,
       total,
@@ -108,7 +112,108 @@ export function generateOrders(
     });
   }
 
-  return { orders, orderLineItems, invoices, monthlyRevenue };
+  const inventoryPositions = applyInventoryFulfillment(input, skus, orders, orderLineItems);
+
+  return { orders, orderLineItems, inventoryPositions, invoices, monthlyRevenue };
+}
+
+function applyInventoryFulfillment(
+  input: ScenarioInput,
+  skus: Sku[],
+  orders: Order[],
+  orderLineItems: OrderLineItem[],
+): InventoryPosition[] {
+  const demandBySku = new Map<string, number>();
+
+  for (const lineItem of orderLineItems) {
+    demandBySku.set(lineItem.skuId, (demandBySku.get(lineItem.skuId) ?? 0) + lineItem.quantity);
+  }
+
+  const inventoryBySku = new Map(
+    skus.map((sku, index) => {
+      const demand = demandBySku.get(sku.id) ?? 0;
+      const availableQuantity = buildAvailableQuantity(input, demand, index);
+      const receivedQuantity = Math.floor(availableQuantity * 0.25);
+      const startingOnHand = availableQuantity - receivedQuantity;
+
+      return [
+        sku.id,
+        {
+          skuId: sku.id,
+          startingOnHand,
+          receivedQuantity,
+          allocatedQuantity: 0,
+          shippedQuantity: 0,
+          backorderedQuantity: 0,
+          endingOnHand: availableQuantity,
+        },
+      ];
+    }),
+  );
+
+  for (const lineItem of orderLineItems) {
+    const inventory = inventoryBySku.get(lineItem.skuId);
+
+    if (!inventory) {
+      continue;
+    }
+
+    const allocatedQuantity = Math.min(lineItem.quantity, inventory.endingOnHand);
+    const backorderedQuantity = lineItem.quantity - allocatedQuantity;
+
+    lineItem.allocatedQuantity = allocatedQuantity;
+    lineItem.shippedQuantity = allocatedQuantity;
+    lineItem.backorderedQuantity = backorderedQuantity;
+    inventory.allocatedQuantity += allocatedQuantity;
+    inventory.shippedQuantity += lineItem.shippedQuantity;
+    inventory.backorderedQuantity += backorderedQuantity;
+    inventory.endingOnHand -= allocatedQuantity;
+  }
+
+  const linesByOrderId = new Map<string, OrderLineItem[]>();
+
+  for (const lineItem of orderLineItems) {
+    linesByOrderId.set(lineItem.orderId, [
+      ...(linesByOrderId.get(lineItem.orderId) ?? []),
+      lineItem,
+    ]);
+  }
+
+  for (const order of orders) {
+    const lines = linesByOrderId.get(order.id) ?? [];
+
+    order.allocatedQuantity = lines.reduce((total, lineItem) => total + lineItem.allocatedQuantity, 0);
+    order.shippedQuantity = lines.reduce((total, lineItem) => total + lineItem.shippedQuantity, 0);
+    order.backorderedQuantity = lines.reduce((total, lineItem) => total + lineItem.backorderedQuantity, 0);
+    order.status =
+      order.backorderedQuantity === 0
+        ? "fulfilled"
+        : order.allocatedQuantity === 0
+          ? "backordered"
+          : "partial";
+  }
+
+  return [...inventoryBySku.values()];
+}
+
+function buildAvailableQuantity(
+  input: ScenarioInput,
+  demand: number,
+  skuIndex: number,
+): number {
+  if (demand === 0) {
+    return 0;
+  }
+
+  if (input.disruptionLevel === "low") {
+    return demand;
+  }
+
+  const baseFillRate = input.disruptionLevel === "high" ? 0.7 : 0.9;
+  const skuVariation = input.disruptionLevel === "high" ? (skuIndex % 4) * 0.04 : (skuIndex % 3) * 0.03;
+  const fillRate = Math.max(0.45, baseFillRate - skuVariation);
+
+  return Math.max(0, Math.floor(demand * fillRate));
 }
 
 function buildMonthlyRevenue(input: ScenarioInput): MonthlyRevenue[] {

@@ -110,6 +110,9 @@ const orderSchema = z.object({
   opportunityId: z.string(),
   orderDate: z.string(),
   status: z.enum(["fulfilled", "partial", "backordered", "cancelled"]),
+  allocatedQuantity: z.number(),
+  shippedQuantity: z.number(),
+  backorderedQuantity: z.number(),
   subtotal: z.number(),
   discountAmount: z.number(),
   total: z.number(),
@@ -120,9 +123,22 @@ const orderLineItemSchema = z.object({
   orderId: z.string(),
   skuId: z.string(),
   quantity: z.number(),
+  allocatedQuantity: z.number(),
+  shippedQuantity: z.number(),
+  backorderedQuantity: z.number(),
   unitPrice: z.number(),
   discountRate: z.number(),
   lineTotal: z.number(),
+});
+
+const inventoryPositionSchema = z.object({
+  skuId: z.string(),
+  startingOnHand: z.number(),
+  receivedQuantity: z.number(),
+  allocatedQuantity: z.number(),
+  shippedQuantity: z.number(),
+  backorderedQuantity: z.number(),
+  endingOnHand: z.number(),
 });
 
 const invoiceSchema = z.object({
@@ -227,6 +243,7 @@ export const generatedScenarioSchema = z.object({
     opportunities: z.array(opportunitySchema),
     orders: z.array(orderSchema),
     orderLineItems: z.array(orderLineItemSchema),
+    inventoryPositions: z.array(inventoryPositionSchema),
     invoices: z.array(invoiceSchema),
     monthlyRevenue: z.array(monthlyRevenueSchema),
     supplyEvents: z.array(supplyEventSchema),

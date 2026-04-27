@@ -20,6 +20,12 @@ export function validateScenario(
   const lineItemById = new Map(
     scenario.tables.orderLineItems.map((lineItem) => [lineItem.id, lineItem]),
   );
+  const inventoryBySkuId = new Map(
+    scenario.tables.inventoryPositions.map((inventoryPosition) => [
+      inventoryPosition.skuId,
+      inventoryPosition,
+    ]),
+  );
   const lostDateByCustomer = new Map(
     scenario.tables.lifecycleEvents
       .filter((event) => event.eventType === "lost")
@@ -63,6 +69,88 @@ export function validateScenario(
         code: "missing_sku_reference",
         severity: "error",
         message: `Order line item ${lineItem.id} references missing SKU ${lineItem.skuId}.`,
+      });
+    }
+
+    if (
+      lineItem.allocatedQuantity < 0 ||
+      lineItem.shippedQuantity < 0 ||
+      lineItem.backorderedQuantity < 0 ||
+      lineItem.allocatedQuantity + lineItem.backorderedQuantity !== lineItem.quantity ||
+      lineItem.shippedQuantity > lineItem.allocatedQuantity
+    ) {
+      messages.push({
+        code: "line_fulfillment_quantity_mismatch",
+        severity: "error",
+        message: `Order line item ${lineItem.id} fulfillment quantities do not reconcile.`,
+      });
+    }
+  }
+
+  for (const inventoryPosition of scenario.tables.inventoryPositions) {
+    const skuLineItems = scenario.tables.orderLineItems.filter(
+      (lineItem) => lineItem.skuId === inventoryPosition.skuId,
+    );
+    const allocatedQuantity = skuLineItems.reduce(
+      (total, lineItem) => total + lineItem.allocatedQuantity,
+      0,
+    );
+    const shippedQuantity = skuLineItems.reduce(
+      (total, lineItem) => total + lineItem.shippedQuantity,
+      0,
+    );
+    const backorderedQuantity = skuLineItems.reduce(
+      (total, lineItem) => total + lineItem.backorderedQuantity,
+      0,
+    );
+
+    if (!skuIds.has(inventoryPosition.skuId)) {
+      messages.push({
+        code: "missing_inventory_sku_reference",
+        severity: "error",
+        message: `Inventory position references missing SKU ${inventoryPosition.skuId}.`,
+      });
+    }
+
+    if (
+      inventoryPosition.startingOnHand < 0 ||
+      inventoryPosition.receivedQuantity < 0 ||
+      inventoryPosition.allocatedQuantity < 0 ||
+      inventoryPosition.shippedQuantity < 0 ||
+      inventoryPosition.backorderedQuantity < 0 ||
+      inventoryPosition.endingOnHand < 0 ||
+      inventoryPosition.startingOnHand +
+        inventoryPosition.receivedQuantity -
+        inventoryPosition.allocatedQuantity !==
+        inventoryPosition.endingOnHand ||
+      inventoryPosition.shippedQuantity > inventoryPosition.allocatedQuantity
+    ) {
+      messages.push({
+        code: "inventory_position_quantity_mismatch",
+        severity: "error",
+        message: `Inventory position for SKU ${inventoryPosition.skuId} does not reconcile.`,
+      });
+    }
+
+    if (
+      inventoryPosition.allocatedQuantity !== allocatedQuantity ||
+      inventoryPosition.shippedQuantity !== shippedQuantity ||
+      inventoryPosition.backorderedQuantity !== backorderedQuantity
+    ) {
+      messages.push({
+        code: "inventory_line_quantity_mismatch",
+        severity: "error",
+        message: `Inventory position for SKU ${inventoryPosition.skuId} does not match order line fulfillment totals.`,
+      });
+    }
+  }
+
+  for (const sku of scenario.tables.skus) {
+    if (!inventoryBySkuId.has(sku.id)) {
+      messages.push({
+        code: "missing_inventory_position",
+        severity: "error",
+        message: `SKU ${sku.id} is missing an inventory position.`,
       });
     }
   }
@@ -129,6 +217,10 @@ export function validateScenario(
         .filter((lineItem) => lineItem.orderId === order.id)
         .reduce((total, lineItem) => total + lineItem.lineTotal, 0),
     );
+    const orderLines = scenario.tables.orderLineItems.filter((lineItem) => lineItem.orderId === order.id);
+    const allocatedQuantity = orderLines.reduce((total, lineItem) => total + lineItem.allocatedQuantity, 0);
+    const shippedQuantity = orderLines.reduce((total, lineItem) => total + lineItem.shippedQuantity, 0);
+    const backorderedQuantity = orderLines.reduce((total, lineItem) => total + lineItem.backorderedQuantity, 0);
     const expectedTotal = order.status === "cancelled" ? 0 : round(lineSubtotal - order.discountAmount);
 
     if (round(order.subtotal) !== lineSubtotal || round(order.total) !== expectedTotal) {
@@ -136,6 +228,18 @@ export function validateScenario(
         code: "order_total_mismatch",
         severity: "error",
         message: `Order ${order.id} totals do not reconcile to line items and discount amount.`,
+      });
+    }
+
+    if (
+      order.allocatedQuantity !== allocatedQuantity ||
+      order.shippedQuantity !== shippedQuantity ||
+      order.backorderedQuantity !== backorderedQuantity
+    ) {
+      messages.push({
+        code: "order_fulfillment_quantity_mismatch",
+        severity: "error",
+        message: `Order ${order.id} fulfillment quantities do not match line items.`,
       });
     }
   }
@@ -186,7 +290,7 @@ export function validateScenario(
       lineItem.orderId !== returnRecord.orderId ||
       lineItem.skuId !== returnRecord.skuId ||
       returnRecord.quantity < 1 ||
-      returnRecord.quantity > lineItem.quantity
+      returnRecord.quantity > lineItem.shippedQuantity
     ) {
       messages.push({
         code: "return_line_item_mismatch",
@@ -224,7 +328,7 @@ export function validateScenario(
       lineItem.orderId !== rejection.orderId ||
       lineItem.skuId !== rejection.skuId ||
       rejection.quantity < 1 ||
-      rejection.quantity > lineItem.quantity
+      rejection.quantity > lineItem.shippedQuantity
     ) {
       messages.push({
         code: "rejection_line_item_mismatch",

@@ -9,7 +9,7 @@ import { generateOpportunities, generateSalesOrg } from "./sales";
 import { generateSupply } from "./supply";
 import { validateScenario } from "./validate";
 
-const BOOKING_REALIZATION_MULTIPLIER = 1.5;
+const BOOKING_REALIZATION_MULTIPLIER = 1.1;
 
 export interface GenerateScenarioOptions {
   researchProfile?: CompanyProfile;
@@ -42,7 +42,7 @@ export function generateScenario(
     territories,
   );
   const opportunities = generateOpportunities(parsedInput, random, customers, salespeople);
-  const { orders, orderLineItems, invoices, monthlyRevenue } = generateOrders(
+  const { orders, orderLineItems, inventoryPositions, invoices, monthlyRevenue } = generateOrders(
     {
       ...parsedInput,
       revenueTarget:
@@ -86,6 +86,7 @@ export function generateScenario(
       opportunities,
       orders,
       orderLineItems,
+      inventoryPositions,
       invoices,
       monthlyRevenue,
       supplyEvents,

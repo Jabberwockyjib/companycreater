@@ -27,15 +27,37 @@ export function DataPreview({ scenario }: { scenario: GeneratedScenario | null }
     },
     {
       title: "Orders",
-      headers: ["Order", "Date", "Status", "Total"],
+      headers: ["Order", "Date", "Status", "Shipped", "Backordered", "Total"],
       rows: scenario.tables.orders.slice(0, 8).map((order) => (
         <tr key={order.id} className="border-t border-slate-100">
           <td className="py-2.5 pr-4 font-medium text-slate-800">{order.id}</td>
           <td className="py-2.5 pr-4">{order.orderDate}</td>
           <td className="py-2.5 pr-4">{order.status}</td>
+          <td className="py-2.5 pr-4">{order.shippedQuantity.toLocaleString()}</td>
+          <td className="py-2.5 pr-4">{order.backorderedQuantity.toLocaleString()}</td>
           <td className="py-2.5 pr-4">{formatCurrency(order.total)}</td>
         </tr>
       )),
+    },
+    {
+      title: "Inventory",
+      headers: ["SKU", "Starting", "Received", "Allocated", "Backordered", "Ending"],
+      rows: scenario.tables.inventoryPositions.slice(0, 8).map((position) => {
+        const sku = scenario.tables.skus.find((candidate) => candidate.id === position.skuId);
+
+        return (
+          <tr key={position.skuId} className="border-t border-slate-100">
+            <td className="py-2.5 pr-4 font-medium text-slate-800">
+              {sku?.skuCode ?? position.skuId}
+            </td>
+            <td className="py-2.5 pr-4">{position.startingOnHand.toLocaleString()}</td>
+            <td className="py-2.5 pr-4">{position.receivedQuantity.toLocaleString()}</td>
+            <td className="py-2.5 pr-4">{position.allocatedQuantity.toLocaleString()}</td>
+            <td className="py-2.5 pr-4">{position.backorderedQuantity.toLocaleString()}</td>
+            <td className="py-2.5 pr-4">{position.endingOnHand.toLocaleString()}</td>
+          </tr>
+        );
+      }),
     },
     {
       title: "Returns",
@@ -70,7 +92,7 @@ export function DataPreview({ scenario }: { scenario: GeneratedScenario | null }
         <div>
           <h2 className="text-sm font-semibold uppercase text-slate-900">Data Preview</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Sample rows from generated CRM, order, return, and product tables.
+            Sample rows from generated CRM, order, inventory, return, and product tables.
           </p>
         </div>
         <div className="flex flex-wrap gap-1 rounded-md bg-slate-100 p-1">

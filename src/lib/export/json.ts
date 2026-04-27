@@ -27,6 +27,7 @@ const relationships = {
     opportunities: ["id"],
     orders: ["id"],
     orderLineItems: ["id"],
+    inventoryPositions: ["skuId"],
     invoices: ["id"],
     monthlyRevenue: ["month"],
     supplyEvents: ["id"],
@@ -93,6 +94,11 @@ const relationships = {
     },
     {
       table: "orderLineItems",
+      column: "skuId",
+      references: { table: "skus", column: "id" },
+    },
+    {
+      table: "inventoryPositions",
       column: "skuId",
       references: { table: "skus", column: "id" },
     },
@@ -179,7 +185,10 @@ export function scenarioToJsonBundle(scenario: GeneratedScenario) {
       skus:
         "Synthetic SKU catalog grounded by product families, price, cost, launch date, and lifecycle status.",
       orders: "Synthetic order headers with customer, salesperson, date, status, and totals.",
-      orderLineItems: "Synthetic order lines tying SKUs, quantities, pricing, discounts, and totals.",
+      orderLineItems:
+        "Synthetic order lines tying SKUs, ordered quantity, fulfillment quantity, pricing, discounts, and totals.",
+      inventoryPositions:
+        "Synthetic SKU inventory positions with starting stock, receipts, allocations, shipments, backorders, and ending stock.",
       invoices: "Synthetic invoice records tied to generated orders.",
       monthlyRevenue: "Monthly booked, invoiced, and credited revenue summaries.",
       returns: "Synthetic return records tied to original orders and credits.",

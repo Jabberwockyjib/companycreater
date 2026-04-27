@@ -37,8 +37,8 @@ export function generateSupply(
 
   const eligibleOrders = orders.filter((order) => order.total > 0);
   const eligibleOrdersById = new Map(eligibleOrders.map((order) => [order.id, order]));
-  const eligibleLineItems = orderLineItems.filter((lineItem) =>
-    eligibleOrdersById.has(lineItem.orderId),
+  const eligibleLineItems = orderLineItems.filter(
+    (lineItem) => eligibleOrdersById.has(lineItem.orderId) && lineItem.shippedQuantity > 0,
   );
   const returnCount =
     input.returnsRate === 0
@@ -58,7 +58,7 @@ export function generateSupply(
   for (let index = 0; index < returnCount; index += 1) {
     const lineItem = eligibleLineItems[(index * 3) % eligibleLineItems.length] as OrderLineItem;
     const order = eligibleOrdersById.get(lineItem.orderId) as Order;
-    const quantity = random.int(1, Math.max(1, lineItem.quantity));
+    const quantity = random.int(1, lineItem.shippedQuantity);
     const creditAmount = round((lineItem.lineTotal / lineItem.quantity) * quantity * random.money(0.75, 1));
     const returnDate = addDaysClamped(order.orderDate, random.int(5, 60), finalAdjustmentDate);
 
@@ -86,7 +86,7 @@ export function generateSupply(
   for (let index = 0; index < rejectionCount; index += 1) {
     const lineItem = eligibleLineItems[(index * 5 + 1) % eligibleLineItems.length] as OrderLineItem;
     const order = eligibleOrdersById.get(lineItem.orderId) as Order;
-    const quantity = random.int(1, Math.max(1, lineItem.quantity));
+    const quantity = random.int(1, lineItem.shippedQuantity);
     const rejectedAmount = round((lineItem.lineTotal / lineItem.quantity) * quantity * random.money(0.6, 1));
     const rejectionDate = addDaysClamped(order.orderDate, random.int(2, 45), finalAdjustmentDate);
 
