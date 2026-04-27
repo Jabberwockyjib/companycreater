@@ -14,7 +14,8 @@ const FIRST_NAMES = ["Avery", "Blake", "Casey", "Devon", "Emerson", "Finley", "G
 const LAST_NAMES = ["Adams", "Bennett", "Chen", "Diaz", "Evans", "Foster", "Gupta", "Hayes", "Ibrahim", "Jones", "Klein", "Lopez", "Morris"];
 const SEGMENTS = ["enterprise", "mid_market", "commercial"] as const;
 const RISKS = ["low", "medium", "high"] as const;
-const ROLES = ["economic_buyer", "technical_evaluator", "procurement", "operations"] as const;
+const CORE_CONTACT_ROLES = ["economic_buyer", "procurement", "operations"] as const;
+const OPTIONAL_CONTACT_ROLES = ["technical_evaluator", "operations", "procurement"] as const;
 
 export function generateCustomers(
   input: ScenarioInput,
@@ -63,13 +64,18 @@ export function generateCustomers(
       riskProfile: index < lostCount ? "high" : random.pick(RISKS),
     });
 
-    const contactName = `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}`;
-    contacts.push({
-      id: `contact_${index + 1}`,
-      customerId: id,
-      name: contactName,
-      role: random.pick(ROLES),
-      email: `${contactName.toLowerCase().replaceAll(" ", ".")}@customer${index + 1}.example.com`,
+    const contactRoles = buildContactRoles(segment, random);
+
+    contactRoles.forEach((role, contactIndex) => {
+      const contactName = `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}`;
+
+      contacts.push({
+        id: `contact_${index + 1}_${contactIndex + 1}`,
+        customerId: id,
+        name: contactName,
+        role,
+        email: `${contactName.toLowerCase().replaceAll(" ", ".")}@customer${index + 1}.example.com`,
+      });
     });
 
     lifecycleEvents.push(
@@ -101,4 +107,20 @@ export function generateCustomers(
   }
 
   return { customers, contacts, lifecycleEvents };
+}
+
+function buildContactRoles(
+  segment: Customer["segment"],
+  random: SeededRandom,
+): Contact["role"][] {
+  if (segment === "commercial") {
+    return [...CORE_CONTACT_ROLES];
+  }
+
+  const optionalCount = segment === "enterprise" ? 2 : 1;
+  const optionalRoles = Array.from({ length: optionalCount }, (_, index) =>
+    OPTIONAL_CONTACT_ROLES[(index + random.int(0, OPTIONAL_CONTACT_ROLES.length - 1)) % OPTIONAL_CONTACT_ROLES.length],
+  );
+
+  return [...new Set<Contact["role"]>([...CORE_CONTACT_ROLES, ...optionalRoles])];
 }

@@ -16,6 +16,149 @@ function summarizeValidations(scenario: GeneratedScenario) {
   );
 }
 
+const relationships = {
+  primaryKeys: {
+    productFamilies: ["id"],
+    skus: ["id"],
+    customers: ["id"],
+    contacts: ["id"],
+    salespeople: ["id"],
+    territories: ["id"],
+    opportunities: ["id"],
+    orders: ["id"],
+    orderLineItems: ["id"],
+    invoices: ["id"],
+    monthlyRevenue: ["month"],
+    supplyEvents: ["id"],
+    returns: ["id"],
+    rejections: ["id"],
+    credits: ["id"],
+    lifecycleEvents: ["id"],
+  },
+  foreignKeys: [
+    {
+      table: "skus",
+      column: "familyId",
+      references: { table: "productFamilies", column: "id" },
+    },
+    {
+      table: "customers",
+      column: "accountOwnerId",
+      references: { table: "salespeople", column: "id" },
+    },
+    {
+      table: "customers",
+      column: "territoryId",
+      references: { table: "territories", column: "id" },
+    },
+    {
+      table: "contacts",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "salespeople",
+      column: "territoryId",
+      references: { table: "territories", column: "id" },
+    },
+    {
+      table: "opportunities",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "opportunities",
+      column: "salespersonId",
+      references: { table: "salespeople", column: "id" },
+    },
+    {
+      table: "orders",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "orders",
+      column: "salespersonId",
+      references: { table: "salespeople", column: "id" },
+    },
+    {
+      table: "orders",
+      column: "opportunityId",
+      references: { table: "opportunities", column: "id" },
+    },
+    {
+      table: "orderLineItems",
+      column: "orderId",
+      references: { table: "orders", column: "id" },
+    },
+    {
+      table: "orderLineItems",
+      column: "skuId",
+      references: { table: "skus", column: "id" },
+    },
+    {
+      table: "invoices",
+      column: "orderId",
+      references: { table: "orders", column: "id" },
+    },
+    {
+      table: "supplyEvents",
+      column: "skuId",
+      references: { table: "skus", column: "id" },
+    },
+    {
+      table: "returns",
+      column: "orderId",
+      references: { table: "orders", column: "id" },
+    },
+    {
+      table: "returns",
+      column: "orderLineItemId",
+      references: { table: "orderLineItems", column: "id" },
+    },
+    {
+      table: "returns",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "returns",
+      column: "skuId",
+      references: { table: "skus", column: "id" },
+    },
+    {
+      table: "rejections",
+      column: "orderId",
+      references: { table: "orders", column: "id" },
+    },
+    {
+      table: "rejections",
+      column: "orderLineItemId",
+      references: { table: "orderLineItems", column: "id" },
+    },
+    {
+      table: "rejections",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "rejections",
+      column: "skuId",
+      references: { table: "skus", column: "id" },
+    },
+    {
+      table: "credits",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "lifecycleEvents",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+  ],
+};
+
 export function scenarioToJsonBundle(scenario: GeneratedScenario) {
   return {
     manifest: {
@@ -26,6 +169,7 @@ export function scenarioToJsonBundle(scenario: GeneratedScenario) {
       companyName: scenario.profile.companyName,
       rowCounts: countRows(scenario),
       validationSummary: summarizeValidations(scenario),
+      relationships,
     },
     scenario,
     assumptionsReport: scenario.assumptionsReport,

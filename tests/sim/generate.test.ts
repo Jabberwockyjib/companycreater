@@ -18,8 +18,28 @@ describe("generateScenario", () => {
 
     expect(scenario.tables.skus).toHaveLength(defaultScenarioInput.skuCount);
     expect(scenario.tables.customers).toHaveLength(defaultScenarioInput.customerCount);
+    expect(scenario.tables.contacts.length).toBeGreaterThan(defaultScenarioInput.customerCount);
     expect(scenario.tables.salespeople).toHaveLength(defaultScenarioInput.salesRepCount);
     expect(scenario.tables.orders.length).toBeGreaterThan(defaultScenarioInput.customerCount);
+  });
+
+  it("creates buyer group contacts for each customer", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const contactsByCustomer = new Map<string, Set<string>>();
+
+    for (const contact of scenario.tables.contacts) {
+      contactsByCustomer.set(
+        contact.customerId,
+        (contactsByCustomer.get(contact.customerId) ?? new Set()).add(contact.role),
+      );
+    }
+
+    expect(contactsByCustomer.size).toBe(defaultScenarioInput.customerCount);
+    expect(
+      [...contactsByCustomer.values()].every(
+        (roles) => roles.has("economic_buyer") && roles.has("procurement") && roles.size >= 3,
+      ),
+    ).toBe(true);
   });
 
   it("labels generated private operating data as synthetic", () => {

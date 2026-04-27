@@ -28,6 +28,66 @@ describe("exports", () => {
     expect(bundle.assumptionsReport).toEqual(scenario.assumptionsReport);
   });
 
+  it("creates JSON bundle with relationship metadata", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const bundle = scenarioToJsonBundle(scenario);
+
+    expect(bundle.manifest.relationships.primaryKeys).toMatchObject({
+      customers: ["id"],
+      orders: ["id"],
+      orderLineItems: ["id"],
+    });
+    expect(bundle.manifest.relationships.foreignKeys).toEqual(
+      expect.arrayContaining([
+        {
+          table: "orders",
+          column: "customerId",
+          references: { table: "customers", column: "id" },
+        },
+        {
+          table: "orders",
+          column: "salespersonId",
+          references: { table: "salespeople", column: "id" },
+        },
+        {
+          table: "orders",
+          column: "opportunityId",
+          references: { table: "opportunities", column: "id" },
+        },
+        {
+          table: "orderLineItems",
+          column: "orderId",
+          references: { table: "orders", column: "id" },
+        },
+        {
+          table: "orderLineItems",
+          column: "skuId",
+          references: { table: "skus", column: "id" },
+        },
+        {
+          table: "skus",
+          column: "familyId",
+          references: { table: "productFamilies", column: "id" },
+        },
+        {
+          table: "returns",
+          column: "orderLineItemId",
+          references: { table: "orderLineItems", column: "id" },
+        },
+        {
+          table: "rejections",
+          column: "orderLineItemId",
+          references: { table: "orderLineItems", column: "id" },
+        },
+        {
+          table: "credits",
+          column: "customerId",
+          references: { table: "customers", column: "id" },
+        },
+      ]),
+    );
+  });
+
   it("packages CSV, JSON, and assumptions report into a zip", async () => {
     const scenario = generateScenario(defaultScenarioInput);
     const zipBytes = await scenarioToZip(scenario);
