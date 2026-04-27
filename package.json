@@ -1,7 +1,8 @@
 {
   "name": "sales-data-generator",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "license": "MIT",
   "scripts": {
     "dev": "ulimit -n 10000; next dev",
     "build": "next build",
