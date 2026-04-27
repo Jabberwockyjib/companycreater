@@ -72,6 +72,19 @@ export function DataPreview({ scenario }: { scenario: GeneratedScenario | null }
       )),
     },
     {
+      title: "Payments",
+      headers: ["Payment", "Invoice", "Date", "Method", "Amount"],
+      rows: scenario.tables.payments.slice(0, 8).map((payment) => (
+        <tr key={payment.id} className="border-t border-slate-100">
+          <td className="py-2.5 pr-4 font-medium text-slate-800">{payment.id}</td>
+          <td className="py-2.5 pr-4">{payment.invoiceId}</td>
+          <td className="py-2.5 pr-4">{payment.paymentDate}</td>
+          <td className="py-2.5 pr-4">{payment.method}</td>
+          <td className="py-2.5 pr-4">{formatCurrency(payment.amount)}</td>
+        </tr>
+      )),
+    },
+    {
       title: "Products",
       headers: ["SKU", "Name", "Lifecycle", "Price"],
       rows: scenario.tables.skus.slice(0, 8).map((sku) => (
@@ -92,7 +105,7 @@ export function DataPreview({ scenario }: { scenario: GeneratedScenario | null }
         <div>
           <h2 className="text-sm font-semibold uppercase text-slate-900">Data Preview</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Sample rows from generated CRM, order, inventory, return, and product tables.
+            Sample rows from generated CRM, order, inventory, return, payment, and product tables.
           </p>
         </div>
         <div className="flex flex-wrap gap-1 rounded-md bg-slate-100 p-1">

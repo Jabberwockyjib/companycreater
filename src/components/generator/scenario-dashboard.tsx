@@ -23,6 +23,12 @@ export function ScenarioDashboard({ scenario }: { scenario: GeneratedScenario | 
     (sum, item) => sum + item.creditedRevenue,
     0,
   );
+  const collectedRevenue = scenario.tables.monthlyRevenue.reduce(
+    (sum, item) => sum + item.collectedRevenue,
+    0,
+  );
+  const endingArBalance =
+    scenario.tables.monthlyRevenue[scenario.tables.monthlyRevenue.length - 1]?.endingArBalance ?? 0;
 
   const averageOrderValue =
     scenario.tables.orders.length > 0 ? bookedRevenue / scenario.tables.orders.length : 0;
@@ -80,6 +86,8 @@ export function ScenarioDashboard({ scenario }: { scenario: GeneratedScenario | 
           trend="Unfilled units"
           tone={backorderedUnits > 0 ? "amber" : "teal"}
         />
+        <Metric label="Collected" value={formatCurrency(collectedRevenue)} trend="Cash receipts" tone="teal" />
+        <Metric label="Open AR" value={formatCurrency(endingArBalance)} trend="Ending balance" tone="amber" />
       </div>
 
       <div className="mt-5 border-t border-slate-100 pt-4">

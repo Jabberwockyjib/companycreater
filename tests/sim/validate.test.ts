@@ -184,4 +184,30 @@ describe("validateScenario", () => {
       ),
     ).toBe(true);
   });
+
+  it("reports payments that reference missing invoices", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    scenario.tables.payments[0].invoiceId = "missing_invoice";
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) => message.code === "missing_payment_invoice_reference" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
+  it("reports invoices whose payment totals do not reconcile", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    scenario.tables.payments[0].amount += 100;
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) => message.code === "invoice_payment_total_mismatch" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
 });

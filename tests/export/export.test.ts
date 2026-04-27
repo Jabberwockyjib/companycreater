@@ -15,6 +15,7 @@ describe("exports", () => {
     expect(files["customers.csv"]).toContain("id,name,industry");
     expect(files["orders.csv"]).toContain("id,customerId,salespersonId");
     expect(files["inventory_positions.csv"]).toContain("skuId,startingOnHand");
+    expect(files["payments.csv"]).toContain("id,invoiceId,customerId");
     expect(files["returns.csv"]).toContain("creditAmount");
   });
 
@@ -38,6 +39,7 @@ describe("exports", () => {
       orders: ["id"],
       orderLineItems: ["id"],
       inventoryPositions: ["skuId"],
+      payments: ["id"],
     });
     expect(bundle.manifest.relationships.foreignKeys).toEqual(
       expect.arrayContaining([
@@ -65,6 +67,11 @@ describe("exports", () => {
           table: "orderLineItems",
           column: "skuId",
           references: { table: "skus", column: "id" },
+        },
+        {
+          table: "payments",
+          column: "invoiceId",
+          references: { table: "invoices", column: "id" },
         },
         {
           table: "inventoryPositions",
@@ -102,6 +109,7 @@ describe("exports", () => {
 
     expect(zip.file("csv/customers.csv")).toBeTruthy();
     expect(zip.file("csv/inventory_positions.csv")).toBeTruthy();
+    expect(zip.file("csv/payments.csv")).toBeTruthy();
     expect(zip.file("scenario.json")).toBeTruthy();
     expect(zip.file("manifest.json")).toBeTruthy();
     expect(zip.file("assumptions_report.txt")).toBeTruthy();

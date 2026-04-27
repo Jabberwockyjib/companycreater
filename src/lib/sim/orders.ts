@@ -1,5 +1,7 @@
-import type { Customer, InventoryPosition, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
+import type { Customer, InventoryPosition, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, PaymentRecord, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+
+const PAYMENT_METHODS = ["ach", "check", "wire", "card"] as const;
 
 export function generateOrders(
   input: ScenarioInput,
@@ -14,12 +16,15 @@ export function generateOrders(
   orderLineItems: OrderLineItem[];
   inventoryPositions: InventoryPosition[];
   invoices: Invoice[];
+  payments: PaymentRecord[];
   monthlyRevenue: MonthlyRevenue[];
 } {
   const orders: Order[] = [];
   const orderLineItems: OrderLineItem[] = [];
   const invoices: Invoice[] = [];
+  const payments: PaymentRecord[] = [];
   const monthlyRevenue = buildMonthlyRevenue(input);
+  const finalPaymentDate = `${input.startYear + input.years - 1}-12-28`;
   const lostDateByCustomer = new Map(
     lifecycleEvents
       .filter((event) => event.eventType === "lost")
@@ -80,6 +85,14 @@ export function generateOrders(
 
     const discountAmount = round(subtotal * random.money(0, 0.08));
     const total = round(subtotal - discountAmount);
+    const paymentTerms = buildPaymentTerms(index);
+    const termDays = paymentTermDays(paymentTerms);
+    const paidAmount = buildPaidAmount(total, index, random);
+    const balanceDue = round(total - paidAmount);
+    const paymentDate =
+      paidAmount > 0
+        ? addDaysClamped(orderDate, random.int(Math.max(5, termDays - 10), termDays + 30), finalPaymentDate)
+        : undefined;
     const monthBucket = monthlyRevenue.find((row) => row.month === `${year}-${String(month).padStart(2, "0")}`);
 
     if (monthBucket) {
@@ -105,16 +118,54 @@ export function generateOrders(
     invoices.push({
       id: `invoice_${index + 1}`,
       orderId: `order_${index + 1}`,
+      customerId: customer.id,
       invoiceDate: orderDate,
-      dueDate: addDays(orderDate, 30),
-      status: total === 0 ? "credited" : index % 8 === 0 ? "open" : "paid",
+      dueDate: addDays(orderDate, termDays),
+      paymentTerms,
+      status: total === 0 ? "credited" : balanceDue === 0 ? "paid" : "open",
+      paidAmount,
+      balanceDue,
       total,
     });
+
+    if (paymentDate) {
+      payments.push({
+        id: `payment_${index + 1}`,
+        invoiceId: `invoice_${index + 1}`,
+        customerId: customer.id,
+        paymentDate,
+        amount: paidAmount,
+        method: random.pick(PAYMENT_METHODS),
+      });
+      const paymentBucket = monthlyRevenue.find((row) => row.month === paymentDate.slice(0, 7));
+
+      if (paymentBucket) {
+        paymentBucket.collectedRevenue = round(paymentBucket.collectedRevenue + paidAmount);
+      }
+    }
   }
 
   const inventoryPositions = applyInventoryFulfillment(input, skus, orders, orderLineItems);
+  recalculateEndingArBalance(monthlyRevenue);
 
-  return { orders, orderLineItems, inventoryPositions, invoices, monthlyRevenue };
+  return { orders, orderLineItems, inventoryPositions, invoices, payments, monthlyRevenue };
+}
+
+export function recalculateEndingArBalance(monthlyRevenue: MonthlyRevenue[]): void {
+  let balance = 0;
+
+  for (const revenue of monthlyRevenue) {
+    balance = Math.max(
+      0,
+      round(
+        balance +
+          revenue.invoicedRevenue -
+          revenue.collectedRevenue -
+          revenue.creditedRevenue,
+      ),
+    );
+    revenue.endingArBalance = balance;
+  }
 }
 
 function applyInventoryFulfillment(
@@ -225,15 +276,50 @@ function buildMonthlyRevenue(input: ScenarioInput): MonthlyRevenue[] {
       month: `${year}-${String(month).padStart(2, "0")}`,
       bookedRevenue: 0,
       invoicedRevenue: 0,
+      collectedRevenue: 0,
       creditedRevenue: 0,
+      endingArBalance: 0,
     };
   });
+}
+
+function buildPaymentTerms(index: number): Invoice["paymentTerms"] {
+  if (index % 11 === 0) {
+    return "net_60";
+  }
+
+  if (index % 5 === 0) {
+    return "net_45";
+  }
+
+  return "net_30";
+}
+
+function paymentTermDays(paymentTerms: Invoice["paymentTerms"]): number {
+  return Number(paymentTerms.replace("net_", ""));
+}
+
+function buildPaidAmount(total: number, index: number, random: SeededRandom): number {
+  if (total === 0 || index % 19 === 0) {
+    return 0;
+  }
+
+  if (index % 8 === 0) {
+    return round(total * random.money(0.25, 0.75));
+  }
+
+  return total;
 }
 
 function addDays(dateString: string, days: number): string {
   const date = new Date(`${dateString}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function addDaysClamped(dateString: string, days: number, maxDateString: string): string {
+  const date = addDays(dateString, days);
+  return date > maxDateString ? maxDateString : date;
 }
 
 function buildOrderDate(

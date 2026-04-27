@@ -144,17 +144,32 @@ const inventoryPositionSchema = z.object({
 const invoiceSchema = z.object({
   id: z.string(),
   orderId: z.string(),
+  customerId: z.string(),
   invoiceDate: z.string(),
   dueDate: z.string(),
+  paymentTerms: z.enum(["net_30", "net_45", "net_60"]),
   status: z.enum(["open", "paid", "credited"]),
+  paidAmount: z.number(),
+  balanceDue: z.number(),
   total: z.number(),
+});
+
+const paymentSchema = z.object({
+  id: z.string(),
+  invoiceId: z.string(),
+  customerId: z.string(),
+  paymentDate: z.string(),
+  amount: z.number(),
+  method: z.enum(["ach", "check", "wire", "card"]),
 });
 
 const monthlyRevenueSchema = z.object({
   month: z.string(),
   bookedRevenue: z.number(),
   invoicedRevenue: z.number(),
+  collectedRevenue: z.number(),
   creditedRevenue: z.number(),
+  endingArBalance: z.number(),
 });
 
 const supplyEventSchema = z.object({
@@ -245,6 +260,7 @@ export const generatedScenarioSchema = z.object({
     orderLineItems: z.array(orderLineItemSchema),
     inventoryPositions: z.array(inventoryPositionSchema),
     invoices: z.array(invoiceSchema),
+    payments: z.array(paymentSchema),
     monthlyRevenue: z.array(monthlyRevenueSchema),
     supplyEvents: z.array(supplyEventSchema),
     returns: z.array(returnSchema),

@@ -29,6 +29,7 @@ const relationships = {
     orderLineItems: ["id"],
     inventoryPositions: ["skuId"],
     invoices: ["id"],
+    payments: ["id"],
     monthlyRevenue: ["month"],
     supplyEvents: ["id"],
     returns: ["id"],
@@ -106,6 +107,21 @@ const relationships = {
       table: "invoices",
       column: "orderId",
       references: { table: "orders", column: "id" },
+    },
+    {
+      table: "invoices",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
+    },
+    {
+      table: "payments",
+      column: "invoiceId",
+      references: { table: "invoices", column: "id" },
+    },
+    {
+      table: "payments",
+      column: "customerId",
+      references: { table: "customers", column: "id" },
     },
     {
       table: "supplyEvents",
@@ -189,8 +205,10 @@ export function scenarioToJsonBundle(scenario: GeneratedScenario) {
         "Synthetic order lines tying SKUs, ordered quantity, fulfillment quantity, pricing, discounts, and totals.",
       inventoryPositions:
         "Synthetic SKU inventory positions with starting stock, receipts, allocations, shipments, backorders, and ending stock.",
-      invoices: "Synthetic invoice records tied to generated orders.",
-      monthlyRevenue: "Monthly booked, invoiced, and credited revenue summaries.",
+      invoices: "Synthetic invoice records tied to generated orders with payment terms, paid amount, and balance due.",
+      payments: "Synthetic posted customer payments tied to invoices for AR and cash collection testing.",
+      monthlyRevenue:
+        "Monthly booked, invoiced, collected, credited, and ending accounts receivable summaries.",
       returns: "Synthetic return records tied to original orders and credits.",
       rejections: "Synthetic rejected order records tied to original orders and credits.",
       credits: "Synthetic credits created by returns, rejections, or concessions.",

@@ -29,6 +29,7 @@ const createGeneratedScenario = () => ({
     orderLineItems: [],
     inventoryPositions: [],
     invoices: [],
+    payments: [],
     monthlyRevenue: [],
     supplyEvents: [],
     returns: [],

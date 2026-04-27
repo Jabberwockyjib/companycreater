@@ -292,6 +292,59 @@ describe("generateScenario", () => {
     );
   });
 
+  it("generates invoice balances, payments, and collected revenue", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const paymentsByInvoice = new Map<string, number>();
+    const collectedRevenueTotal = scenario.tables.monthlyRevenue.reduce(
+      (total, revenue) => total + revenue.collectedRevenue,
+      0,
+    );
+    const paymentTotal = scenario.tables.payments.reduce((total, payment) => {
+      paymentsByInvoice.set(
+        payment.invoiceId,
+        Math.round(((paymentsByInvoice.get(payment.invoiceId) ?? 0) + payment.amount) * 100) / 100,
+      );
+
+      return total + payment.amount;
+    }, 0);
+
+    expect(scenario.tables.payments.length).toBeGreaterThan(0);
+    expect(Math.round(collectedRevenueTotal * 100) / 100).toBe(
+      Math.round(paymentTotal * 100) / 100,
+    );
+
+    for (const invoice of scenario.tables.invoices) {
+      const paidAmount = paymentsByInvoice.get(invoice.id) ?? 0;
+
+      expect(invoice.paymentTerms).toMatch(/^net_/);
+      expect(Math.round((invoice.paidAmount + invoice.balanceDue) * 100) / 100).toBe(
+        invoice.total,
+      );
+      expect(Math.round(paidAmount * 100) / 100).toBe(invoice.paidAmount);
+      expect(invoice.balanceDue).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("rolls ending AR balance forward from invoices, payments, and credits", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    let expectedBalance = 0;
+
+    for (const revenue of scenario.tables.monthlyRevenue) {
+      expectedBalance = Math.max(
+        0,
+        Math.round(
+          (expectedBalance +
+            revenue.invoicedRevenue -
+            revenue.collectedRevenue -
+            revenue.creditedRevenue) *
+            100,
+        ) / 100,
+      );
+
+      expect(revenue.endingArBalance).toBe(expectedBalance);
+    }
+  });
+
   it("does not drop credits when late-horizon orders receive adjustments", () => {
     const scenario = generateScenario({
       ...defaultScenarioInput,

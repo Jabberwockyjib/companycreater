@@ -149,17 +149,32 @@ export interface InventoryPosition {
 export interface Invoice {
   id: string;
   orderId: string;
+  customerId: string;
   invoiceDate: string;
   dueDate: string;
+  paymentTerms: "net_30" | "net_45" | "net_60";
   status: "open" | "paid" | "credited";
+  paidAmount: number;
+  balanceDue: number;
   total: number;
+}
+
+export interface PaymentRecord {
+  id: string;
+  invoiceId: string;
+  customerId: string;
+  paymentDate: string;
+  amount: number;
+  method: "ach" | "check" | "wire" | "card";
 }
 
 export interface MonthlyRevenue {
   month: string;
   bookedRevenue: number;
   invoicedRevenue: number;
+  collectedRevenue: number;
   creditedRevenue: number;
+  endingArBalance: number;
 }
 
 export interface SupplyEvent {
@@ -239,6 +254,7 @@ export interface GeneratedScenario {
     orderLineItems: OrderLineItem[];
     inventoryPositions: InventoryPosition[];
     invoices: Invoice[];
+    payments: PaymentRecord[];
     monthlyRevenue: MonthlyRevenue[];
     supplyEvents: SupplyEvent[];
     returns: ReturnRecord[];

@@ -2,7 +2,7 @@ import { generatedScenarioSchema, scenarioInputSchema } from "@/lib/domain/schem
 import type { CompanyProfile, GeneratedScenario, MonthlyRevenue, ScenarioInput } from "@/lib/domain/types";
 import { buildCompanyProfile } from "./company";
 import { generateCustomers } from "./customers";
-import { generateOrders } from "./orders";
+import { generateOrders, recalculateEndingArBalance } from "./orders";
 import { generateProducts } from "./products";
 import { SeededRandom } from "./random";
 import { generateOpportunities, generateSalesOrg } from "./sales";
@@ -42,7 +42,7 @@ export function generateScenario(
     territories,
   );
   const opportunities = generateOpportunities(parsedInput, random, customers, salespeople);
-  const { orders, orderLineItems, inventoryPositions, invoices, monthlyRevenue } = generateOrders(
+  const { orders, orderLineItems, inventoryPositions, invoices, payments, monthlyRevenue } = generateOrders(
     {
       ...parsedInput,
       revenueTarget:
@@ -67,6 +67,7 @@ export function generateScenario(
     creditDate: credit.creditDate,
     amount: credit.amount,
   })));
+  recalculateEndingArBalance(monthlyRevenue);
 
   const scenario: GeneratedScenario = {
     metadata: {
@@ -88,6 +89,7 @@ export function generateScenario(
       orderLineItems,
       inventoryPositions,
       invoices,
+      payments,
       monthlyRevenue,
       supplyEvents,
       returns,

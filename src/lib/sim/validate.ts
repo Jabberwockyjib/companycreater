@@ -17,6 +17,7 @@ export function validateScenario(
     scenario.tables.opportunities.map((opportunity) => [opportunity.id, opportunity]),
   );
   const orderById = new Map(scenario.tables.orders.map((order) => [order.id, order]));
+  const invoiceById = new Map(scenario.tables.invoices.map((invoice) => [invoice.id, invoice]));
   const lineItemById = new Map(
     scenario.tables.orderLineItems.map((lineItem) => [lineItem.id, lineItem]),
   );
@@ -246,6 +247,12 @@ export function validateScenario(
 
   for (const invoice of scenario.tables.invoices) {
     const order = orderById.get(invoice.orderId);
+    const invoicePayments = scenario.tables.payments.filter(
+      (payment) => payment.invoiceId === invoice.id,
+    );
+    const paidAmount = round(
+      invoicePayments.reduce((total, payment) => total + payment.amount, 0),
+    );
 
     if (!order) {
       messages.push({
@@ -258,6 +265,67 @@ export function validateScenario(
         code: "invoice_total_mismatch",
         severity: "error",
         message: `Invoice ${invoice.id} total does not match order ${order.id}.`,
+      });
+    } else if (invoice.customerId !== order.customerId) {
+      messages.push({
+        code: "invoice_customer_mismatch",
+        severity: "error",
+        message: `Invoice ${invoice.id} customer does not match order ${order.id}.`,
+      });
+    }
+
+    if (
+      round(invoice.paidAmount + invoice.balanceDue) !== round(invoice.total) ||
+      invoice.balanceDue < 0 ||
+      invoice.paidAmount < 0
+    ) {
+      messages.push({
+        code: "invoice_balance_mismatch",
+        severity: "error",
+        message: `Invoice ${invoice.id} paid amount and balance due do not reconcile.`,
+      });
+    }
+
+    if (paidAmount !== round(invoice.paidAmount)) {
+      messages.push({
+        code: "invoice_payment_total_mismatch",
+        severity: "error",
+        message: `Invoice ${invoice.id} payments do not match the invoice paid amount.`,
+      });
+    }
+  }
+
+  for (const payment of scenario.tables.payments) {
+    const invoice = invoiceById.get(payment.invoiceId);
+    const paymentMonth = payment.paymentDate.slice(0, 7);
+
+    if (!invoice) {
+      messages.push({
+        code: "missing_payment_invoice_reference",
+        severity: "error",
+        message: `Payment ${payment.id} references missing invoice ${payment.invoiceId}.`,
+      });
+    } else if (payment.customerId !== invoice.customerId) {
+      messages.push({
+        code: "payment_customer_mismatch",
+        severity: "error",
+        message: `Payment ${payment.id} customer does not match invoice ${invoice.id}.`,
+      });
+    }
+
+    if (!revenueMonths.has(paymentMonth)) {
+      messages.push({
+        code: "missing_payment_month",
+        severity: "error",
+        message: `Payment ${payment.id} falls in ${paymentMonth}, which is missing from monthly revenue.`,
+      });
+    }
+
+    if (payment.amount <= 0) {
+      messages.push({
+        code: "invalid_payment_amount",
+        severity: "error",
+        message: `Payment ${payment.id} must have a positive amount.`,
       });
     }
   }
@@ -379,7 +447,47 @@ export function validateScenario(
     }
   }
 
+  validateReceivables(messages, scenario);
+
   return messages;
+}
+
+function validateReceivables(messages: ValidationMessage[], scenario: GeneratedScenario): void {
+  let arBalance = 0;
+
+  for (const revenue of scenario.tables.monthlyRevenue) {
+    const paymentTotal = round(
+      scenario.tables.payments
+        .filter((payment) => payment.paymentDate.slice(0, 7) === revenue.month)
+        .reduce((total, payment) => total + payment.amount, 0),
+    );
+
+    if (paymentTotal !== round(revenue.collectedRevenue)) {
+      messages.push({
+        code: "monthly_collected_revenue_mismatch",
+        severity: "error",
+        message: `Monthly collected revenue for ${revenue.month} does not match generated payments.`,
+      });
+    }
+
+    arBalance = Math.max(
+      0,
+      round(
+        arBalance +
+          revenue.invoicedRevenue -
+          revenue.collectedRevenue -
+          revenue.creditedRevenue,
+      ),
+    );
+
+    if (arBalance !== round(revenue.endingArBalance)) {
+      messages.push({
+        code: "monthly_ar_balance_mismatch",
+        severity: "error",
+        message: `Ending AR balance for ${revenue.month} does not roll forward.`,
+      });
+    }
+  }
 }
 
 function validateRevenue(
