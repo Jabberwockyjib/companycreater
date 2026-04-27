@@ -2,6 +2,16 @@ import type { Customer, InventoryPosition, Invoice, LifecycleEvent, MonthlyReven
 import type { SeededRandom } from "./random";
 
 const PAYMENT_METHODS = ["ach", "check", "wire", "card"] as const;
+const EXPECTED_ORDER_DISCOUNT_RATE = 0.04;
+
+interface CustomerBuyingPlan {
+  customer: Customer;
+  salesperson: Salesperson;
+  opportunity: Opportunity;
+  orderCount: number;
+  targetSubtotal: number;
+  affinityFamilyIds: string[];
+}
 
 export function generateOrders(
   input: ScenarioInput,
@@ -39,34 +49,42 @@ export function generateOrders(
       .filter((opportunity) => opportunity.stage === "closed_won")
       .map((opportunity) => [opportunity.customerId, opportunity]),
   );
-  const orderTarget = Math.max(
-    orderableCustomers.length + 1,
-    Math.round(orderableCustomers.length * input.years * 1.45),
+  const customerPlans = buildCustomerBuyingPlans(
+    input,
+    random,
+    orderableCustomers,
+    salespeople,
+    skus,
+    closedWonOpportunityByCustomer,
+    lostDateByCustomer,
   );
-  const targetAverageOrder = input.revenueTarget / Math.max(1, orderTarget);
+  const plannedOrders = customerPlans
+    .flatMap((plan) => buildPlannedOrders(input, random, plan, lostDateByCustomer))
+    .sort((left, right) => left.orderDate.localeCompare(right.orderDate));
 
-  for (let index = 0; index < orderTarget; index += 1) {
-    const customer = orderableCustomers[index % orderableCustomers.length] as Customer;
-    const salesperson =
-      salespeople.find((candidate) => candidate.id === customer.accountOwnerId) ??
-      (salespeople[index % salespeople.length] as Salesperson);
-    const opportunity = closedWonOpportunityByCustomer.get(customer.id);
-
-    if (!opportunity) {
-      throw new Error(`Customer ${customer.id} does not have a closed-won opportunity`);
-    }
-
-    const monthOffset = index % (input.years * 12);
-    const orderDate = buildOrderDate(input, random, customer, lostDateByCustomer, monthOffset);
+  for (let index = 0; index < plannedOrders.length; index += 1) {
+    const plannedOrder = plannedOrders[index] as {
+      plan: CustomerBuyingPlan;
+      orderDate: string;
+      targetSubtotal: number;
+    };
+    const { customer, salesperson, opportunity } = plannedOrder.plan;
+    const orderDate = plannedOrder.orderDate;
     const year = Number(orderDate.slice(0, 4));
     const month = Number(orderDate.slice(5, 7));
-    const lineCount = random.int(1, 4);
+    const lineCount = buildLineCount(plannedOrder.targetSubtotal, random);
+    const lineWeights = buildWeights(lineCount, random);
+    const lineWeightTotal = lineWeights.reduce((total, weight) => total + weight, 0);
     let subtotal = 0;
 
     for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
-      const sku = random.pick(skus);
+      const sku = pickSkuForCustomer(plannedOrder.plan, skus, random, lineIndex);
       const discountRate = random.money(0, 0.12);
-      const quantity = Math.max(1, Math.round((targetAverageOrder / lineCount / sku.unitPrice) * random.money(0.6, 1.4)));
+      const targetLineTotal = plannedOrder.targetSubtotal * ((lineWeights[lineIndex] ?? 1) / lineWeightTotal);
+      const quantity = Math.max(
+        1,
+        Math.round((targetLineTotal / sku.unitPrice) * random.money(0.85, 1.15)),
+      );
       const lineTotal = round(sku.unitPrice * quantity * (1 - discountRate));
       subtotal += lineTotal;
       orderLineItems.push({
@@ -149,6 +167,184 @@ export function generateOrders(
   recalculateEndingArBalance(monthlyRevenue);
 
   return { orders, orderLineItems, inventoryPositions, invoices, payments, monthlyRevenue };
+}
+
+function buildCustomerBuyingPlans(
+  input: ScenarioInput,
+  random: SeededRandom,
+  customers: Customer[],
+  salespeople: Salesperson[],
+  skus: Sku[],
+  opportunitiesByCustomerId: Map<string, Opportunity>,
+  lostDateByCustomer: Map<string, string>,
+): CustomerBuyingPlan[] {
+  const planSeeds = customers.map((customer, index) => {
+    const salesperson =
+      salespeople.find((candidate) => candidate.id === customer.accountOwnerId) ??
+      (salespeople[index % salespeople.length] as Salesperson);
+    const opportunity = opportunitiesByCustomerId.get(customer.id);
+
+    if (!opportunity) {
+      throw new Error(`Customer ${customer.id} does not have a closed-won opportunity`);
+    }
+
+    const segmentWeight =
+      customer.segment === "enterprise" ? 2.5 : customer.segment === "mid_market" ? 1.15 : 0.45;
+    const riskWeight =
+      customer.riskProfile === "high" ? 0.72 : customer.riskProfile === "medium" ? 0.95 : 1.08;
+    const lostWeight = lostDateByCustomer.has(customer.id) ? 0.75 : 1;
+    const weight =
+      Math.pow(customer.annualPotential, 1.25) *
+      segmentWeight *
+      riskWeight *
+      lostWeight *
+      random.money(0.8, 1.2);
+
+    return {
+      customer,
+      salesperson,
+      opportunity,
+      orderCount: buildOrderCount(input, customer, random, lostDateByCustomer.has(customer.id)),
+      weight,
+      affinityFamilyIds: buildAffinityFamilyIds(customer, skus),
+    };
+  });
+  const totalWeight = planSeeds.reduce((total, plan) => total + plan.weight, 0);
+  const targetSubtotal = input.revenueTarget / (1 - EXPECTED_ORDER_DISCOUNT_RATE);
+
+  return planSeeds.map((planSeed) => ({
+    customer: planSeed.customer,
+    salesperson: planSeed.salesperson,
+    opportunity: planSeed.opportunity,
+    orderCount: planSeed.orderCount,
+    targetSubtotal: targetSubtotal * (planSeed.weight / totalWeight),
+    affinityFamilyIds: planSeed.affinityFamilyIds,
+  }));
+}
+
+function buildOrderCount(
+  input: ScenarioInput,
+  customer: Customer,
+  random: SeededRandom,
+  isLost: boolean,
+): number {
+  const baseAnnualOrders =
+    customer.segment === "enterprise"
+      ? random.int(3, 6)
+      : customer.segment === "mid_market"
+        ? random.int(1, 3)
+        : random.money(0.45, 1.35);
+  const riskMultiplier =
+    customer.riskProfile === "high" ? 0.65 : customer.riskProfile === "medium" ? 0.9 : 1.1;
+  const lostMultiplier = isLost ? 0.7 : 1;
+
+  return Math.max(1, Math.round(input.years * baseAnnualOrders * riskMultiplier * lostMultiplier));
+}
+
+function buildAffinityFamilyIds(customer: Customer, skus: Sku[]): string[] {
+  const familyIds = [...new Set(skus.map((sku) => sku.familyId))];
+  const numericId = Number(customer.id.replace(/\D/g, "")) || 1;
+  const primaryFamilyId = familyIds[(numericId * 3) % familyIds.length] as string;
+  const secondaryFamilyId = familyIds[(numericId * 7 + 1) % familyIds.length] as string;
+
+  return [...new Set([primaryFamilyId, secondaryFamilyId])];
+}
+
+function buildPlannedOrders(
+  input: ScenarioInput,
+  random: SeededRandom,
+  plan: CustomerBuyingPlan,
+  lostDateByCustomer: Map<string, string>,
+): Array<{ plan: CustomerBuyingPlan; orderDate: string; targetSubtotal: number }> {
+  const weights = buildWeights(plan.orderCount, random).map((weight, index) => {
+    if (index === 0) {
+      return weight * 0.55;
+    }
+
+    if (index === 1) {
+      return weight * 0.8;
+    }
+
+    if ((index + 1) % 6 === 0) {
+      return weight * 1.8;
+    }
+
+    return weight;
+  });
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+  const availableMonths = buildAvailableMonths(input, plan.customer, lostDateByCustomer);
+
+  return Array.from({ length: plan.orderCount }, (_, index) => {
+    const monthOffset = availableMonths[Math.min(
+      availableMonths.length - 1,
+      Math.floor((index / Math.max(1, plan.orderCount)) * availableMonths.length),
+    )] ?? 0;
+    const orderDate = buildOrderDate(input, random, plan.customer, lostDateByCustomer, monthOffset);
+
+    return {
+      plan,
+      orderDate,
+      targetSubtotal: plan.targetSubtotal * ((weights[index] ?? 1) / totalWeight),
+    };
+  });
+}
+
+function buildAvailableMonths(
+  input: ScenarioInput,
+  customer: Customer,
+  lostDateByCustomer: Map<string, string>,
+): number[] {
+  const lostDate = lostDateByCustomer.get(customer.id);
+  const totalMonths = input.years * 12;
+
+  if (!lostDate) {
+    return Array.from({ length: totalMonths }, (_, index) => index);
+  }
+
+  const lostYear = Number(lostDate.slice(0, 4));
+  const lostMonth = Number(lostDate.slice(5, 7));
+  const monthsBeforeLoss = Math.max(1, (lostYear - input.startYear) * 12 + lostMonth - 1);
+
+  return Array.from({ length: monthsBeforeLoss }, (_, index) => index);
+}
+
+function buildLineCount(targetSubtotal: number, random: SeededRandom): number {
+  if (targetSubtotal > 350000) {
+    return random.int(3, 6);
+  }
+
+  if (targetSubtotal > 125000) {
+    return random.int(2, 4);
+  }
+
+  return random.int(1, 3);
+}
+
+function buildWeights(count: number, random: SeededRandom): number[] {
+  return Array.from({ length: count }, (_, index) => {
+    const cycleLift = index % 5 === 0 ? 1.35 : 1;
+    return random.money(0.65, 1.45) * cycleLift;
+  });
+}
+
+function pickSkuForCustomer(
+  plan: CustomerBuyingPlan,
+  skus: Sku[],
+  random: SeededRandom,
+  lineIndex: number,
+): Sku {
+  const roll = random.next();
+  const preferredFamilyId =
+    roll < 0.68
+      ? plan.affinityFamilyIds[0]
+      : roll < 0.9
+        ? plan.affinityFamilyIds[1] ?? plan.affinityFamilyIds[0]
+        : undefined;
+  const candidateSkus = preferredFamilyId
+    ? skus.filter((sku) => sku.familyId === preferredFamilyId)
+    : skus;
+
+  return candidateSkus[(lineIndex + random.int(0, candidateSkus.length - 1)) % candidateSkus.length] as Sku;
 }
 
 export function recalculateEndingArBalance(monthlyRevenue: MonthlyRevenue[]): void {

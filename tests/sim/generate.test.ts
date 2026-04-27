@@ -275,6 +275,76 @@ describe("generateScenario", () => {
     ).toBe(true);
   });
 
+  it("creates lumpy account revenue instead of evenly spreading sales across customers", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const revenueByCustomer = new Map<string, number>();
+
+    for (const order of scenario.tables.orders) {
+      revenueByCustomer.set(
+        order.customerId,
+        (revenueByCustomer.get(order.customerId) ?? 0) + order.total,
+      );
+    }
+
+    const customerRevenue = [...revenueByCustomer.values()].sort((a, b) => b - a);
+    const topCustomerCount = Math.max(1, Math.ceil(customerRevenue.length * 0.2));
+    const topCustomerRevenue = customerRevenue
+      .slice(0, topCustomerCount)
+      .reduce((total, revenue) => total + revenue, 0);
+    const totalRevenue = customerRevenue.reduce((total, revenue) => total + revenue, 0);
+
+    expect(topCustomerRevenue / totalRevenue).toBeGreaterThan(0.5);
+  });
+
+  it("varies customer buying cadence by account size and risk", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const orderCountsByCustomer = new Map<string, number>();
+
+    for (const order of scenario.tables.orders) {
+      orderCountsByCustomer.set(
+        order.customerId,
+        (orderCountsByCustomer.get(order.customerId) ?? 0) + 1,
+      );
+    }
+
+    const orderCounts = [...orderCountsByCustomer.values()].sort((a, b) => a - b);
+    const p25 = orderCounts[Math.floor(orderCounts.length * 0.25)] ?? 0;
+    const p90 = orderCounts[Math.floor(orderCounts.length * 0.9)] ?? 0;
+
+    expect(p90).toBeGreaterThanOrEqual(p25 * 3);
+  });
+
+  it("keeps repeat customers concentrated around preferred product families", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const skusById = new Map(scenario.tables.skus.map((sku) => [sku.id, sku]));
+    const orderById = new Map(scenario.tables.orders.map((order) => [order.id, order]));
+    const familyCountsByCustomer = new Map<string, Map<string, number>>();
+
+    for (const lineItem of scenario.tables.orderLineItems) {
+      const order = orderById.get(lineItem.orderId);
+      const sku = skusById.get(lineItem.skuId);
+
+      if (!order || !sku) {
+        continue;
+      }
+
+      const familyCounts = familyCountsByCustomer.get(order.customerId) ?? new Map<string, number>();
+      familyCounts.set(sku.familyId, (familyCounts.get(sku.familyId) ?? 0) + 1);
+      familyCountsByCustomer.set(order.customerId, familyCounts);
+    }
+
+    const repeatCustomers = [...familyCountsByCustomer.values()].filter((familyCounts) => {
+      const lineCount = [...familyCounts.values()].reduce((total, count) => total + count, 0);
+      const topFamilyCount = Math.max(...familyCounts.values());
+
+      return lineCount >= 4 && topFamilyCount / lineCount >= 0.45;
+    });
+
+    expect(repeatCustomers.length).toBeGreaterThanOrEqual(
+      Math.floor(familyCountsByCustomer.size * 0.6),
+    );
+  });
+
   it("keeps every credit within the monthly revenue horizon", () => {
     const scenario = generateScenario(defaultScenarioInput);
     const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((row) => row.month));
