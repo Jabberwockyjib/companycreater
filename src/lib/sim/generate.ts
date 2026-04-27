@@ -60,6 +60,7 @@ export function generateScenario(
     random,
     skus,
     orders,
+    orderLineItems,
   );
 
   applyCredits(monthlyRevenue, credits.map((credit) => ({

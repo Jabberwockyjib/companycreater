@@ -108,6 +108,19 @@ describe("validateScenario", () => {
     ).toBe(true);
   });
 
+  it("reports returns that reference a missing order line item", () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    scenario.tables.returns[0].orderLineItemId = "missing_line_item";
+
+    const validations = validateScenario(scenario, defaultScenarioInput);
+
+    expect(
+      validations.some(
+        (message) => message.code === "missing_return_line_item_reference" && message.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
   it("reports credits that fall outside the monthly revenue horizon", () => {
     const scenario = generateScenario(defaultScenarioInput);
     scenario.tables.credits[0].creditDate = "2099-01-01";

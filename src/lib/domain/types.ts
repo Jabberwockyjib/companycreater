@@ -159,7 +159,10 @@ export interface SupplyEvent {
 export interface ReturnRecord {
   id: string;
   orderId: string;
+  orderLineItemId: string;
   customerId: string;
+  skuId: string;
+  quantity: number;
   reason: "damaged" | "incorrect_item" | "late_delivery" | "quality_issue";
   creditAmount: number;
   returnDate: string;
@@ -168,7 +171,10 @@ export interface ReturnRecord {
 export interface RejectionRecord {
   id: string;
   orderId: string;
+  orderLineItemId: string;
   customerId: string;
+  skuId: string;
+  quantity: number;
   reason: "failed_inspection" | "nonconforming_product" | "late_shipment";
   rejectedAmount: number;
   rejectionDate: string;

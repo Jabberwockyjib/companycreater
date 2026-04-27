@@ -1,4 +1,4 @@
-import type { CreditRecord, Order, RejectionRecord, ReturnRecord, ScenarioInput, Sku, SupplyEvent } from "@/lib/domain/types";
+import type { CreditRecord, Order, OrderLineItem, RejectionRecord, ReturnRecord, ScenarioInput, Sku, SupplyEvent } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
 
 const EVENT_TYPES = ["lead_time_extension", "stockout", "allocation"] as const;
@@ -11,6 +11,7 @@ export function generateSupply(
   random: SeededRandom,
   skus: Sku[],
   orders: Order[],
+  orderLineItems: OrderLineItem[],
 ): {
   supplyEvents: SupplyEvent[];
   returns: ReturnRecord[];
@@ -35,15 +36,19 @@ export function generateSupply(
   });
 
   const eligibleOrders = orders.filter((order) => order.total > 0);
+  const eligibleOrdersById = new Map(eligibleOrders.map((order) => [order.id, order]));
+  const eligibleLineItems = orderLineItems.filter((lineItem) =>
+    eligibleOrdersById.has(lineItem.orderId),
+  );
   const returnCount =
     input.returnsRate === 0
       ? 0
-      : Math.min(eligibleOrders.length, Math.max(1, Math.floor(orders.length * input.returnsRate)));
+      : Math.min(eligibleLineItems.length, Math.max(1, Math.floor(orders.length * input.returnsRate)));
   const rejectionCount =
     input.rejectionRate === 0
       ? 0
       : Math.min(
-          eligibleOrders.length,
+          eligibleLineItems.length,
           Math.max(1, Math.floor(orders.length * input.rejectionRate)),
         );
   const returns: ReturnRecord[] = [];
@@ -51,14 +56,19 @@ export function generateSupply(
   const credits: CreditRecord[] = [];
 
   for (let index = 0; index < returnCount; index += 1) {
-    const order = eligibleOrders[(index * 3) % eligibleOrders.length] as Order;
-    const creditAmount = round(order.total * random.money(0.08, 0.35));
+    const lineItem = eligibleLineItems[(index * 3) % eligibleLineItems.length] as OrderLineItem;
+    const order = eligibleOrdersById.get(lineItem.orderId) as Order;
+    const quantity = random.int(1, Math.max(1, lineItem.quantity));
+    const creditAmount = round((lineItem.lineTotal / lineItem.quantity) * quantity * random.money(0.75, 1));
     const returnDate = addDaysClamped(order.orderDate, random.int(5, 60), finalAdjustmentDate);
 
     returns.push({
       id: `return_${index + 1}`,
       orderId: order.id,
+      orderLineItemId: lineItem.id,
       customerId: order.customerId,
+      skuId: lineItem.skuId,
+      quantity,
       reason: random.pick(RETURN_REASONS),
       creditAmount,
       returnDate,
@@ -74,14 +84,19 @@ export function generateSupply(
   }
 
   for (let index = 0; index < rejectionCount; index += 1) {
-    const order = eligibleOrders[(index * 5 + 1) % eligibleOrders.length] as Order;
-    const rejectedAmount = round(order.total * random.money(0.05, 0.22));
+    const lineItem = eligibleLineItems[(index * 5 + 1) % eligibleLineItems.length] as OrderLineItem;
+    const order = eligibleOrdersById.get(lineItem.orderId) as Order;
+    const quantity = random.int(1, Math.max(1, lineItem.quantity));
+    const rejectedAmount = round((lineItem.lineTotal / lineItem.quantity) * quantity * random.money(0.6, 1));
     const rejectionDate = addDaysClamped(order.orderDate, random.int(2, 45), finalAdjustmentDate);
 
     rejections.push({
       id: `rejection_${index + 1}`,
       orderId: order.id,
+      orderLineItemId: lineItem.id,
       customerId: order.customerId,
+      skuId: lineItem.skuId,
+      quantity,
       reason: random.pick(REJECTION_REASONS),
       rejectedAmount,
       rejectionDate,

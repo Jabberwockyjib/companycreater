@@ -17,6 +17,9 @@ export function validateScenario(
     scenario.tables.opportunities.map((opportunity) => [opportunity.id, opportunity]),
   );
   const orderById = new Map(scenario.tables.orders.map((order) => [order.id, order]));
+  const lineItemById = new Map(
+    scenario.tables.orderLineItems.map((lineItem) => [lineItem.id, lineItem]),
+  );
   const lostDateByCustomer = new Map(
     scenario.tables.lifecycleEvents
       .filter((event) => event.eventType === "lost")
@@ -157,6 +160,7 @@ export function validateScenario(
 
   for (const returnRecord of scenario.tables.returns) {
     const order = orderById.get(returnRecord.orderId);
+    const lineItem = lineItemById.get(returnRecord.orderLineItemId);
 
     if (!order) {
       messages.push({
@@ -171,10 +175,30 @@ export function validateScenario(
         message: `Return ${returnRecord.id} customer does not match order ${order.id}.`,
       });
     }
+
+    if (!lineItem) {
+      messages.push({
+        code: "missing_return_line_item_reference",
+        severity: "error",
+        message: `Return ${returnRecord.id} references missing order line item ${returnRecord.orderLineItemId}.`,
+      });
+    } else if (
+      lineItem.orderId !== returnRecord.orderId ||
+      lineItem.skuId !== returnRecord.skuId ||
+      returnRecord.quantity < 1 ||
+      returnRecord.quantity > lineItem.quantity
+    ) {
+      messages.push({
+        code: "return_line_item_mismatch",
+        severity: "error",
+        message: `Return ${returnRecord.id} does not match the referenced order line item.`,
+      });
+    }
   }
 
   for (const rejection of scenario.tables.rejections) {
     const order = orderById.get(rejection.orderId);
+    const lineItem = lineItemById.get(rejection.orderLineItemId);
 
     if (!order) {
       messages.push({
@@ -187,6 +211,25 @@ export function validateScenario(
         code: "rejection_customer_mismatch",
         severity: "error",
         message: `Rejection ${rejection.id} customer does not match order ${order.id}.`,
+      });
+    }
+
+    if (!lineItem) {
+      messages.push({
+        code: "missing_rejection_line_item_reference",
+        severity: "error",
+        message: `Rejection ${rejection.id} references missing order line item ${rejection.orderLineItemId}.`,
+      });
+    } else if (
+      lineItem.orderId !== rejection.orderId ||
+      lineItem.skuId !== rejection.skuId ||
+      rejection.quantity < 1 ||
+      rejection.quantity > lineItem.quantity
+    ) {
+      messages.push({
+        code: "rejection_line_item_mismatch",
+        severity: "error",
+        message: `Rejection ${rejection.id} does not match the referenced order line item.`,
       });
     }
   }

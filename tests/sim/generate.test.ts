@@ -176,6 +176,38 @@ describe("generateScenario", () => {
     expect(scenario.tables.credits).toHaveLength(0);
   });
 
+  it("ties returns and rejections to specific order line items and SKUs", () => {
+    const scenario = generateScenario({
+      ...defaultScenarioInput,
+      returnsRate: 0.12,
+      rejectionRate: 0.08,
+    });
+    const lineItemsById = new Map(
+      scenario.tables.orderLineItems.map((lineItem) => [lineItem.id, lineItem]),
+    );
+
+    expect(scenario.tables.returns.length).toBeGreaterThan(0);
+    expect(scenario.tables.rejections.length).toBeGreaterThan(0);
+
+    for (const returnRecord of scenario.tables.returns) {
+      const lineItem = lineItemsById.get(returnRecord.orderLineItemId);
+
+      expect(lineItem).toBeDefined();
+      expect(returnRecord.skuId).toBe(lineItem?.skuId);
+      expect(returnRecord.quantity).toBeGreaterThan(0);
+      expect(returnRecord.quantity).toBeLessThanOrEqual(lineItem?.quantity ?? 0);
+    }
+
+    for (const rejection of scenario.tables.rejections) {
+      const lineItem = lineItemsById.get(rejection.orderLineItemId);
+
+      expect(lineItem).toBeDefined();
+      expect(rejection.skuId).toBe(lineItem?.skuId);
+      expect(rejection.quantity).toBeGreaterThan(0);
+      expect(rejection.quantity).toBeLessThanOrEqual(lineItem?.quantity ?? 0);
+    }
+  });
+
   it("keeps every credit within the monthly revenue horizon", () => {
     const scenario = generateScenario(defaultScenarioInput);
     const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((row) => row.month));

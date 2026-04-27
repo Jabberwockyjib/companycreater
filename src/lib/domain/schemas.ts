@@ -154,7 +154,10 @@ const supplyEventSchema = z.object({
 const returnSchema = z.object({
   id: z.string(),
   orderId: z.string(),
+  orderLineItemId: z.string(),
   customerId: z.string(),
+  skuId: z.string(),
+  quantity: z.number(),
   reason: z.enum(["damaged", "incorrect_item", "late_delivery", "quality_issue"]),
   creditAmount: z.number(),
   returnDate: z.string(),
@@ -163,7 +166,10 @@ const returnSchema = z.object({
 const rejectionSchema = z.object({
   id: z.string(),
   orderId: z.string(),
+  orderLineItemId: z.string(),
   customerId: z.string(),
+  skuId: z.string(),
+  quantity: z.number(),
   reason: z.enum(["failed_inspection", "nonconforming_product", "late_shipment"]),
   rejectedAmount: z.number(),
   rejectionDate: z.string(),
