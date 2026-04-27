@@ -135,6 +135,24 @@ export function ScenarioForm({
             <option value="high">High</option>
           </Select>
         </Field>
+        <Field label="Trajectory">
+          <Select
+            value={value.trajectory ?? "stable"}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                trajectory: event.target.value as NonNullable<ScenarioInput["trajectory"]>,
+              })
+            }
+          >
+            <option value="stable">Stable</option>
+            <option value="growth">Growing</option>
+            <option value="decline">Declining</option>
+            <option value="turnaround">Turnaround</option>
+            <option value="supply_constrained">Supply constrained</option>
+            <option value="breakout">Skyrocketing</option>
+          </Select>
+        </Field>
         <RateField
           label={`Returns ${formatPercent(value.returnsRate)}`}
           value={value.returnsRate}

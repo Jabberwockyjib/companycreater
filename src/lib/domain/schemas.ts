@@ -16,6 +16,9 @@ export const scenarioInputSchema = z.object({
   channels: z.array(z.enum(["direct", "distributor", "partner", "ecommerce"])).min(1),
   seasonality: z.enum(["low", "moderate", "high"]),
   disruptionLevel: z.enum(["low", "moderate", "high"]),
+  trajectory: z
+    .enum(["stable", "growth", "decline", "turnaround", "supply_constrained", "breakout"])
+    .default("stable"),
   returnsRate: z.number().min(0).max(0.2),
   rejectionRate: z.number().min(0).max(0.1),
   churnRate: z.number().min(0).max(0.3),

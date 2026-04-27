@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultScenarioInput } from "@/lib/domain/defaults";
 import { generatedScenarioSchema } from "@/lib/domain/schemas";
+import type { GeneratedScenario } from "@/lib/domain/types";
 import { generateScenario } from "@/lib/sim/generate";
 
 describe("generateScenario", () => {
@@ -345,6 +346,46 @@ describe("generateScenario", () => {
     );
   });
 
+  it("shapes revenue direction from the scenario trajectory setting", () => {
+    const growthScenario = generateScenario({
+      ...defaultScenarioInput,
+      seed: 9201,
+      trajectory: "growth",
+    });
+    const declineScenario = generateScenario({
+      ...defaultScenarioInput,
+      seed: 9202,
+      trajectory: "decline",
+    });
+    const breakoutScenario = generateScenario({
+      ...defaultScenarioInput,
+      seed: 9203,
+      trajectory: "breakout",
+    });
+
+    expect(yearOverYearChange(growthScenario)).toBeGreaterThan(0.12);
+    expect(yearOverYearChange(declineScenario)).toBeLessThan(-0.08);
+    expect(yearOverYearChange(breakoutScenario)).toBeGreaterThan(0.3);
+  });
+
+  it("makes supply-constrained scenarios visibly operationally stressed", () => {
+    const stableScenario = generateScenario({
+      ...defaultScenarioInput,
+      seed: 9301,
+      trajectory: "stable",
+      disruptionLevel: "moderate",
+    });
+    const constrainedScenario = generateScenario({
+      ...defaultScenarioInput,
+      seed: 9301,
+      trajectory: "supply_constrained",
+      disruptionLevel: "moderate",
+    });
+
+    expect(fillRate(constrainedScenario)).toBeLessThan(fillRate(stableScenario) - 0.1);
+    expect(creditRate(constrainedScenario)).toBeGreaterThan(creditRate(stableScenario));
+  });
+
   it("keeps every credit within the monthly revenue horizon", () => {
     const scenario = generateScenario(defaultScenarioInput);
     const revenueMonths = new Set(scenario.tables.monthlyRevenue.map((row) => row.month));
@@ -443,3 +484,39 @@ describe("generateScenario", () => {
     expect(() => generatedScenarioSchema.parse(scenario)).not.toThrow();
   });
 });
+
+function yearOverYearChange(scenario: GeneratedScenario): number {
+  const annualRevenue = Array.from({ length: scenario.profile.revenueTarget ? 3 : 0 }, (_, index) =>
+    scenario.tables.monthlyRevenue
+      .slice(index * 12, index * 12 + 12)
+      .reduce((total, revenue) => total + revenue.bookedRevenue, 0),
+  );
+
+  return (annualRevenue[2] ?? 0) / Math.max(1, annualRevenue[0] ?? 0) - 1;
+}
+
+function fillRate(scenario: GeneratedScenario): number {
+  const shippedQuantity = scenario.tables.orderLineItems.reduce(
+    (total, lineItem) => total + lineItem.shippedQuantity,
+    0,
+  );
+  const orderedQuantity = scenario.tables.orderLineItems.reduce(
+    (total, lineItem) => total + lineItem.quantity,
+    0,
+  );
+
+  return shippedQuantity / Math.max(1, orderedQuantity);
+}
+
+function creditRate(scenario: GeneratedScenario): number {
+  const bookedRevenue = scenario.tables.monthlyRevenue.reduce(
+    (total, revenue) => total + revenue.bookedRevenue,
+    0,
+  );
+  const creditedRevenue = scenario.tables.monthlyRevenue.reduce(
+    (total, revenue) => total + revenue.creditedRevenue,
+    0,
+  );
+
+  return creditedRevenue / Math.max(1, bookedRevenue);
+}

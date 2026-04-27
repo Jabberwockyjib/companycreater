@@ -80,7 +80,10 @@ export function generateOrders(
     for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
       const sku = pickSkuForCustomer(plannedOrder.plan, skus, random, lineIndex);
       const discountRate = random.money(0, 0.12);
-      const targetLineTotal = plannedOrder.targetSubtotal * ((lineWeights[lineIndex] ?? 1) / lineWeightTotal);
+      const targetLineTotal =
+        plannedOrder.targetSubtotal *
+        ((lineWeights[lineIndex] ?? 1) / lineWeightTotal) *
+        trajectoryMultiplier(input, orderDate);
       const quantity = Math.max(
         1,
         Math.round((targetLineTotal / sku.unitPrice) * random.money(0.85, 1.15)),
@@ -452,15 +455,45 @@ function buildAvailableQuantity(
     return 0;
   }
 
-  if (input.disruptionLevel === "low") {
+  if (input.disruptionLevel === "low" && input.trajectory !== "supply_constrained") {
     return demand;
   }
 
-  const baseFillRate = input.disruptionLevel === "high" ? 0.7 : 0.9;
-  const skuVariation = input.disruptionLevel === "high" ? (skuIndex % 4) * 0.04 : (skuIndex % 3) * 0.03;
+  const baseFillRate =
+    input.trajectory === "supply_constrained"
+      ? 0.68
+      : input.disruptionLevel === "high"
+        ? 0.7
+        : 0.9;
+  const skuVariation =
+    input.trajectory === "supply_constrained" || input.disruptionLevel === "high"
+      ? (skuIndex % 4) * 0.04
+      : (skuIndex % 3) * 0.03;
   const fillRate = Math.max(0.45, baseFillRate - skuVariation);
 
   return Math.max(0, Math.floor(demand * fillRate));
+}
+
+function trajectoryMultiplier(input: ScenarioInput, orderDate: string): number {
+  const orderMonth =
+    (Number(orderDate.slice(0, 4)) - input.startYear) * 12 + Number(orderDate.slice(5, 7)) - 1;
+  const progress = input.years <= 1 ? 0 : orderMonth / Math.max(1, input.years * 12 - 1);
+
+  switch (input.trajectory ?? "stable") {
+    case "growth":
+      return 0.72 + progress * 0.75;
+    case "decline":
+      return 1.25 - progress * 0.55;
+    case "turnaround":
+      return progress < 0.5 ? 0.78 - progress * 0.18 : 0.72 + (progress - 0.5) * 1.1;
+    case "supply_constrained":
+      return 1.05 + progress * 0.18;
+    case "breakout":
+      return progress < 0.62 ? 0.62 + progress * 0.35 : 0.85 + (progress - 0.62) * 2.3;
+    case "stable":
+    default:
+      return 0.96 + progress * 0.08;
+  }
 }
 
 function buildMonthlyRevenue(input: ScenarioInput): MonthlyRevenue[] {

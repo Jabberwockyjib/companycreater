@@ -1,4 +1,11 @@
 export type ScenarioMode = "fictional" | "real_company";
+export type ScenarioTrajectory =
+  | "stable"
+  | "growth"
+  | "decline"
+  | "turnaround"
+  | "supply_constrained"
+  | "breakout";
 export type ClaimSourceType = "public_fact" | "inferred" | "user_assumption" | "synthetic";
 export type SalesChannel = "direct" | "distributor" | "partner" | "ecommerce";
 export type ValidationSeverity = "info" | "warning" | "error";
@@ -19,6 +26,7 @@ export interface ScenarioInput {
   channels: SalesChannel[];
   seasonality: "low" | "moderate" | "high";
   disruptionLevel: "low" | "moderate" | "high";
+  trajectory?: ScenarioTrajectory;
   returnsRate: number;
   rejectionRate: number;
   churnRate: number;

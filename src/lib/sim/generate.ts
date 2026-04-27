@@ -56,7 +56,7 @@ export function generateScenario(
     lifecycleEvents,
   );
   const { supplyEvents, returns, rejections, credits } = generateSupply(
-    parsedInput,
+    withTrajectoryAdjustmentRates(parsedInput),
     random,
     skus,
     orders,
@@ -101,6 +101,7 @@ export function generateScenario(
     assumptionsReport: [
       "Scenario input values are treated as user assumptions, including revenue target and operating scope.",
       "Private operating data, including customers, orders, supply events, returns, rejections, and credits, is synthetic.",
+      buildTrajectoryAssumption(parsedInput),
       buildChurnAssumption(parsedInput),
       "Revenue totals are approximate simulator outputs; formal validation is handled in a later task.",
     ],
@@ -109,6 +110,22 @@ export function generateScenario(
   scenario.validations = validateScenario(scenario, parsedInput);
 
   return generatedScenarioSchema.parse(scenario);
+}
+
+function withTrajectoryAdjustmentRates(input: ScenarioInput): ScenarioInput {
+  if (input.trajectory !== "supply_constrained") {
+    return input;
+  }
+
+  return {
+    ...input,
+    returnsRate: Math.min(0.2, input.returnsRate * 1.6),
+    rejectionRate: Math.min(0.1, input.rejectionRate * 1.8),
+  };
+}
+
+function buildTrajectoryAssumption(input: ScenarioInput): string {
+  return `Scenario trajectory posture is ${input.trajectory ?? "stable"}; revenue timing, operating pressure, and risk signals are synthetic variations generated from that posture.`;
 }
 
 function buildChurnAssumption(input: ScenarioInput): string {

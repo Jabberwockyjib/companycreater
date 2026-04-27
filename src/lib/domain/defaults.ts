@@ -16,6 +16,7 @@ export const defaultScenarioInput: ScenarioInput = {
   channels: ["direct", "distributor"],
   seasonality: "moderate",
   disruptionLevel: "moderate",
+  trajectory: "stable",
   returnsRate: 0.035,
   rejectionRate: 0.012,
   churnRate: 0.08,

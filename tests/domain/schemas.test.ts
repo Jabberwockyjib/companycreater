@@ -54,6 +54,15 @@ describe("domain schemas", () => {
     ).toThrow();
   });
 
+  it("defaults scenario trajectory to stable when omitted", () => {
+    const inputWithoutTrajectory = { ...defaultScenarioInput };
+
+    delete inputWithoutTrajectory.trajectory;
+    const parsed = scenarioInputSchema.parse(inputWithoutTrajectory);
+
+    expect(parsed.trajectory).toBe("stable");
+  });
+
   it("accepts an empty but structurally valid generated scenario", () => {
     const parsed = generatedScenarioSchema.parse(createGeneratedScenario());
     expect(parsed.profile.companyName).toBe("Acme Industrial Components");
