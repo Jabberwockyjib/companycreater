@@ -3,6 +3,7 @@
 import type { ScenarioInput } from "@/lib/domain/types";
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from "react";
 import { industryPresets } from "@/lib/domain/defaults";
+import { SCENARIO_INPUT_LIMITS, SCENARIO_LIMIT_LABELS } from "@/lib/domain/limits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -76,38 +77,58 @@ export function ScenarioForm({
         <NumberField
           label="Revenue Target"
           value={value.revenueTarget}
+          min={SCENARIO_INPUT_LIMITS.revenueTarget.min}
+          max={SCENARIO_INPUT_LIMITS.revenueTarget.max}
+          hint={SCENARIO_LIMIT_LABELS.revenueTarget}
           onChange={(revenueTarget) => onChange({ ...value, revenueTarget })}
         />
         <NumberField
           label="Seed"
           value={value.seed}
+          min={SCENARIO_INPUT_LIMITS.seed.min}
+          hint="1 or higher"
           onChange={(seed) => onChange({ ...value, seed })}
         />
         <NumberField
           label="Years of History"
           value={value.historyYears ?? value.years}
+          min={SCENARIO_INPUT_LIMITS.historyYears.min}
+          max={SCENARIO_INPUT_LIMITS.historyYears.max}
+          hint={SCENARIO_LIMIT_LABELS.historyYears}
           onChange={(historyYears) => onChange({ ...value, historyYears })}
         />
         <Field label="Data Through">
-          <Input
-            placeholder="YYYY-MM-DD"
-            value={value.asOfDate ?? new Date().toISOString().slice(0, 10)}
-            onChange={(event) => onChange({ ...value, asOfDate: event.target.value })}
-          />
+          <div className="grid gap-1">
+            <Input
+              placeholder="YYYY-MM-DD"
+              value={value.asOfDate ?? new Date().toISOString().slice(0, 10)}
+              onChange={(event) => onChange({ ...value, asOfDate: event.target.value })}
+            />
+            <p className="text-[11px] leading-4 text-slate-500">Format: YYYY-MM-DD</p>
+          </div>
         </Field>
         <NumberField
           label="Customers"
           value={value.customerCount}
+          min={SCENARIO_INPUT_LIMITS.customerCount.min}
+          max={SCENARIO_INPUT_LIMITS.customerCount.max}
+          hint={SCENARIO_LIMIT_LABELS.customerCount}
           onChange={(customerCount) => onChange({ ...value, customerCount })}
         />
         <NumberField
           label="SKUs"
           value={value.skuCount}
+          min={SCENARIO_INPUT_LIMITS.skuCount.min}
+          max={SCENARIO_INPUT_LIMITS.skuCount.max}
+          hint={SCENARIO_LIMIT_LABELS.skuCount}
           onChange={(skuCount) => onChange({ ...value, skuCount })}
         />
         <NumberField
           label="Sales Reps"
           value={value.salesRepCount}
+          min={SCENARIO_INPUT_LIMITS.salesRepCount.min}
+          max={SCENARIO_INPUT_LIMITS.salesRepCount.max}
+          hint={SCENARIO_LIMIT_LABELS.salesRepCount}
           onChange={(salesRepCount) => onChange({ ...value, salesRepCount })}
         />
         <Field label="Seasonality">
@@ -156,21 +177,21 @@ export function ScenarioForm({
           </Select>
         </Field>
         <RateField
-          label={`Returns ${formatPercent(value.returnsRate)}`}
+          label={`Returns ${formatPercent(value.returnsRate)} (${SCENARIO_LIMIT_LABELS.returnsRate})`}
           value={value.returnsRate}
-          max={0.2}
+          max={SCENARIO_INPUT_LIMITS.returnsRate.max}
           onChange={(returnsRate) => onChange({ ...value, returnsRate })}
         />
         <RateField
-          label={`Rejections ${formatPercent(value.rejectionRate)}`}
+          label={`Rejections ${formatPercent(value.rejectionRate)} (${SCENARIO_LIMIT_LABELS.rejectionRate})`}
           value={value.rejectionRate}
-          max={0.1}
+          max={SCENARIO_INPUT_LIMITS.rejectionRate.max}
           onChange={(rejectionRate) => onChange({ ...value, rejectionRate })}
         />
         <RateField
-          label={`Churn ${formatPercent(value.churnRate)}`}
+          label={`Churn ${formatPercent(value.churnRate)} (${SCENARIO_LIMIT_LABELS.churnRate})`}
           value={value.churnRate}
-          max={0.3}
+          max={SCENARIO_INPUT_LIMITS.churnRate.max}
           onChange={(churnRate) => onChange({ ...value, churnRate })}
         />
         <Field label="Regions">
@@ -235,16 +256,37 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function NumberField({
   label,
   value,
+  min,
+  max,
+  hint,
   onChange,
 }: {
   label: string;
   value: number;
+  min?: number;
+  max?: number;
+  hint?: string;
   onChange: (value: number) => void;
 }) {
+  const controlId = useId();
+
   return (
-    <Field label={label}>
-      <Input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </Field>
+    <div className="grid gap-1 text-sm">
+      <label htmlFor={controlId} className="text-xs font-medium text-slate-600">
+        {label}
+      </label>
+      <div className="grid gap-1">
+        <Input
+          id={controlId}
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        {hint ? <p className="text-[11px] leading-4 text-slate-500">Allowed: {hint}</p> : null}
+      </div>
+    </div>
   );
 }
 
@@ -259,9 +301,15 @@ function RateField({
   max: number;
   onChange: (value: number) => void;
 }) {
+  const controlId = useId();
+
   return (
-    <Field label={label}>
+    <div className="grid gap-1 text-sm">
+      <label htmlFor={controlId} className="text-xs font-medium text-slate-600">
+        {label}
+      </label>
       <Input
+        id={controlId}
         type="range"
         min={0}
         max={max}
@@ -269,6 +317,6 @@ function RateField({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-    </Field>
+    </div>
   );
 }

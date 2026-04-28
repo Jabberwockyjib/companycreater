@@ -68,7 +68,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        setError("Scenario input is outside the supported MVP bounds.");
+        setError(await readRequestError(response, "Scenario input is outside the supported MVP bounds."));
         return;
       }
 
@@ -171,6 +171,21 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+async function readRequestError(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: string; details?: string[] };
+    const details = payload.details?.filter(Boolean) ?? [];
+
+    if (details.length) {
+      return `${payload.error ?? fallback}: ${details.join(" ")}`;
+    }
+
+    return payload.error ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function StatusPill({ label, value, active = false }: { label: string; value: string; active?: boolean }) {

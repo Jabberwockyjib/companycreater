@@ -65,7 +65,8 @@ describe("POST /api/generate", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: "Invalid generation input" });
+    expect(body.error).toBe("Invalid generation input");
+    expect(body.details).toContain("Revenue target must be between $25M and $200M.");
   });
 
   it("returns 500 for valid input that fails internal generation", async () => {

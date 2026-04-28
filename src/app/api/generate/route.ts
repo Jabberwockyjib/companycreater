@@ -37,7 +37,13 @@ export async function handleGenerateRequest(
   const parsedRequest = generationRequestSchema.safeParse(body);
 
   if (!parsedRequest.success) {
-    return NextResponse.json({ error: "Invalid generation input" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Invalid generation input",
+        details: validationDetails(parsedRequest.error),
+      },
+      { status: 400 },
+    );
   }
 
   try {
@@ -50,4 +56,23 @@ export async function handleGenerateRequest(
 
 export async function POST(request: Request) {
   return handleGenerateRequest(request);
+}
+
+function validationDetails(error: z.ZodError): string[] {
+  const details = new Set<string>();
+
+  for (const issue of error.issues) {
+    if (issue.code === "invalid_union") {
+      for (const nestedError of issue.errors) {
+        for (const nestedIssue of nestedError) {
+          details.add(nestedIssue.message);
+        }
+      }
+      continue;
+    }
+
+    details.add(issue.message);
+  }
+
+  return [...details].filter((message) => message !== "Invalid input");
 }

@@ -1,19 +1,48 @@
 import { z } from "zod";
+import { SCENARIO_INPUT_LIMITS } from "./limits";
 
 export const scenarioInputSchema = z.object({
   mode: z.enum(["fictional", "real_company"]),
-  seed: z.number().int().min(1),
-  companyName: z.string().min(2),
+  seed: z.number().int("Seed must be a whole number.").min(SCENARIO_INPUT_LIMITS.seed.min, "Seed must be at least 1."),
+  companyName: z.string().min(2, "Company must be at least 2 characters."),
   companyUrl: z.string().url().optional().or(z.literal("")),
-  industry: z.string().min(2),
-  revenueTarget: z.number().min(25_000_000).max(200_000_000),
-  startYear: z.number().int().min(2018).max(2026),
-  years: z.number().int().min(1).max(6),
-  historyYears: z.number().int().min(1).max(5).optional(),
-  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  customerCount: z.number().int().min(20).max(500),
-  skuCount: z.number().int().min(10).max(1000),
-  salesRepCount: z.number().int().min(3).max(80),
+  industry: z.string().min(2, "Industry must be at least 2 characters."),
+  revenueTarget: z
+    .number()
+    .min(SCENARIO_INPUT_LIMITS.revenueTarget.min, "Revenue target must be between $25M and $200M.")
+    .max(SCENARIO_INPUT_LIMITS.revenueTarget.max, "Revenue target must be between $25M and $200M."),
+  startYear: z
+    .number()
+    .int()
+    .min(SCENARIO_INPUT_LIMITS.startYear.min)
+    .max(SCENARIO_INPUT_LIMITS.startYear.max),
+  years: z
+    .number()
+    .int()
+    .min(SCENARIO_INPUT_LIMITS.years.min)
+    .max(SCENARIO_INPUT_LIMITS.years.max),
+  historyYears: z
+    .number()
+    .int("Years of history must be a whole number.")
+    .min(SCENARIO_INPUT_LIMITS.historyYears.min, "Years of history must be between 1 and 5.")
+    .max(SCENARIO_INPUT_LIMITS.historyYears.max, "Years of history must be between 1 and 5.")
+    .optional(),
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data through must use YYYY-MM-DD.").optional(),
+  customerCount: z
+    .number()
+    .int("Customers must be a whole number.")
+    .min(SCENARIO_INPUT_LIMITS.customerCount.min, "Customers must be between 20 and 500.")
+    .max(SCENARIO_INPUT_LIMITS.customerCount.max, "Customers must be between 20 and 500."),
+  skuCount: z
+    .number()
+    .int("SKUs must be a whole number.")
+    .min(SCENARIO_INPUT_LIMITS.skuCount.min, "SKUs must be between 10 and 1,000.")
+    .max(SCENARIO_INPUT_LIMITS.skuCount.max, "SKUs must be between 10 and 1,000."),
+  salesRepCount: z
+    .number()
+    .int("Sales reps must be a whole number.")
+    .min(SCENARIO_INPUT_LIMITS.salesRepCount.min, "Sales reps must be between 3 and 80.")
+    .max(SCENARIO_INPUT_LIMITS.salesRepCount.max, "Sales reps must be between 3 and 80."),
   regions: z.array(z.string().min(2)).min(1),
   channels: z.array(z.enum(["direct", "distributor", "partner", "ecommerce"])).min(1),
   seasonality: z.enum(["low", "moderate", "high"]),
@@ -21,9 +50,9 @@ export const scenarioInputSchema = z.object({
   trajectory: z
     .enum(["stable", "growth", "decline", "turnaround", "supply_constrained", "breakout"])
     .default("stable"),
-  returnsRate: z.number().min(0).max(0.2),
-  rejectionRate: z.number().min(0).max(0.1),
-  churnRate: z.number().min(0).max(0.3),
+  returnsRate: z.number().min(0).max(SCENARIO_INPUT_LIMITS.returnsRate.max),
+  rejectionRate: z.number().min(0).max(SCENARIO_INPUT_LIMITS.rejectionRate.max),
+  churnRate: z.number().min(0).max(SCENARIO_INPUT_LIMITS.churnRate.max),
 });
 
 export const claimSchema = z.object({
