@@ -7,6 +7,8 @@ interface ResearchPanelProps {
   sources: ResearchSource[];
   isResearching: boolean;
   error: string | null;
+  canResearch: boolean;
+  isRealCompany: boolean;
   onResearch: () => void;
 }
 
@@ -15,6 +17,8 @@ export function ResearchPanel({
   sources,
   isResearching,
   error,
+  canResearch,
+  isRealCompany,
   onResearch,
 }: ResearchPanelProps) {
   const aiClaims = profile?.claims.filter((claim) => claim.field.startsWith("ai.")) ?? [];
@@ -29,6 +33,15 @@ export function ResearchPanel({
           Pull public company context and expose what Gemini extracted.
         </p>
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
+        {!isRealCompany ? (
+          <p className="mt-2 text-xs leading-4 text-slate-500">
+            Research is used for real-company scenarios. Fictional scenarios generate directly.
+          </p>
+        ) : !canResearch ? (
+          <p className="mt-2 text-xs leading-4 text-slate-500">
+            Add a company name and website to run public research.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-3 px-4 py-4">
@@ -49,7 +62,11 @@ export function ResearchPanel({
         </div>
 
         <div>
-          <Button className="w-full bg-teal-700 hover:bg-teal-800" onClick={onResearch} disabled={isResearching}>
+          <Button
+            className="w-full bg-teal-700 hover:bg-teal-800"
+            onClick={onResearch}
+            disabled={isResearching || !canResearch}
+          >
             {isResearching ? "Researching" : "Research Company"}
           </Button>
         </div>

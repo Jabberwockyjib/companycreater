@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatPercent } from "@/lib/format";
+import { isResearchableCompanyInput } from "@/lib/research/workflow";
 
 interface ScenarioFormProps {
   value: ScenarioInput;
@@ -24,6 +25,16 @@ export function ScenarioForm({
   onChange,
   onGenerate,
 }: ScenarioFormProps) {
+  const needsResearchFirst = value.mode === "real_company";
+  const canResearchAndGenerate = isResearchableCompanyInput(value);
+  const generateLabel = needsResearchFirst
+    ? canResearchAndGenerate
+      ? "Research & Generate"
+      : "Add Company Website"
+    : "Generate Scenario";
+  const workingLabel = needsResearchFirst ? "Researching & Generating" : "Generating";
+  const generateDisabled = isGenerating || (needsResearchFirst && !canResearchAndGenerate);
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3">
@@ -227,8 +238,13 @@ export function ScenarioForm({
       </div>
       <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-4">
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
-        <Button className="w-full bg-teal-700 hover:bg-teal-800" onClick={onGenerate} disabled={isGenerating}>
-          {isGenerating ? "Generating" : "Generate Scenario"}
+        {needsResearchFirst && !canResearchAndGenerate ? (
+          <p className="text-xs leading-4 text-slate-500">
+            Real-company scenarios require a company name and website before generation.
+          </p>
+        ) : null}
+        <Button className="w-full bg-teal-700 hover:bg-teal-800" onClick={onGenerate} disabled={generateDisabled}>
+          {isGenerating ? workingLabel : generateLabel}
         </Button>
       </div>
     </section>

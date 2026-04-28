@@ -12,6 +12,11 @@ import { ValidationPanel } from "@/components/generator/validation-panel";
 import { defaultScenarioInput } from "@/lib/domain/defaults";
 import type { CompanyProfile, GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
 import type { ResearchSource } from "@/lib/research/sources";
+import {
+  isResearchableCompanyInput,
+  researchProfileMatchesInput,
+  researchRelevantInputChanged,
+} from "@/lib/research/workflow";
 
 export default function Home() {
   const [input, setInput] = useState<ScenarioInput>(defaultScenarioInput);
@@ -23,7 +28,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [researchError, setResearchError] = useState<string | null>(null);
 
-  async function research() {
+  async function research(): Promise<CompanyProfile | null> {
     setIsResearching(true);
     setResearchError(null);
 
@@ -36,7 +41,7 @@ export default function Home() {
 
       if (!response.ok) {
         setResearchError(await readRequestError(response, "Research input is outside the supported MVP bounds."));
-        return;
+        return null;
       }
 
       const payload = (await response.json()) as {
@@ -45,24 +50,31 @@ export default function Home() {
       };
       setResearchProfile(payload.profile);
       setResearchSources(payload.sources);
+      return payload.profile;
     } catch {
       setResearchError("Research failed.");
+      return null;
     } finally {
       setIsResearching(false);
     }
   }
 
-  async function generate() {
+  async function generate(researchProfileOverride?: CompanyProfile | null) {
     setIsGenerating(true);
     setError(null);
+    const effectiveResearchProfile =
+      input.mode === "real_company"
+        ? researchProfileOverride ??
+          (researchProfileMatchesInput(researchProfile, input) ? researchProfile : null)
+        : null;
 
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(
-          researchProfile && input.mode === "real_company"
-            ? { input, researchProfile }
+          effectiveResearchProfile
+            ? { input, researchProfile: effectiveResearchProfile }
             : input,
         ),
       });
@@ -74,15 +86,15 @@ export default function Home() {
 
       const generatedScenario = (await response.json()) as GeneratedScenario;
       const mergedScenario =
-        researchProfile && input.mode === "real_company"
+        effectiveResearchProfile
           ? {
               ...generatedScenario,
               profile: {
                 ...generatedScenario.profile,
                 claims: [
-                  ...researchProfile.claims,
+                  ...effectiveResearchProfile.claims,
                   ...generatedScenario.profile.claims.filter(
-                    (claim) => !researchProfile.claims.some((item) => item.id === claim.id),
+                    (claim) => !effectiveResearchProfile.claims.some((item) => item.id === claim.id),
                   ),
                 ],
               },
@@ -101,6 +113,28 @@ export default function Home() {
     }
   }
 
+  async function runScenarioWorkflow() {
+    if (input.mode !== "real_company") {
+      await generate();
+      return;
+    }
+
+    if (!isResearchableCompanyInput(input)) {
+      setError("Real-company scenarios require a company name and website before generation.");
+      return;
+    }
+
+    const profile = researchProfileMatchesInput(researchProfile, input)
+      ? researchProfile
+      : await research();
+
+    if (!profile) {
+      return;
+    }
+
+    await generate(profile);
+  }
+
   const aiClaimCount =
     researchProfile?.claims.filter((claim) => claim.field.startsWith("ai.")).length ?? 0;
   const scenarioStatus = scenario ? "Scenario ready" : isGenerating ? "Generating" : "No run yet";
@@ -110,7 +144,21 @@ export default function Home() {
 
     if (generatedScenario.metadata.input) {
       setInput(generatedScenario.metadata.input);
+      setResearchProfile(null);
+      setResearchSources([]);
     }
+  }
+
+  function updateInput(nextInput: ScenarioInput) {
+    setInput((previousInput) => {
+      if (researchRelevantInputChanged(previousInput, nextInput)) {
+        setResearchProfile(null);
+        setResearchSources([]);
+        setResearchError(null);
+      }
+
+      return nextInput;
+    });
   }
 
   return (
@@ -142,10 +190,10 @@ export default function Home() {
           <aside>
             <ScenarioForm
               value={input}
-              isGenerating={isGenerating}
+              isGenerating={isGenerating || isResearching}
               error={error}
-              onChange={setInput}
-              onGenerate={generate}
+              onChange={updateInput}
+              onGenerate={runScenarioWorkflow}
             />
           </aside>
           <section className="grid gap-4">
@@ -159,6 +207,8 @@ export default function Home() {
               sources={researchSources}
               isResearching={isResearching}
               error={researchError}
+              canResearch={isResearchableCompanyInput(input)}
+              isRealCompany={input.mode === "real_company"}
               onResearch={research}
             />
           </aside>
