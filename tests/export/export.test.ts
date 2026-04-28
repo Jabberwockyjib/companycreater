@@ -112,7 +112,19 @@ describe("exports", () => {
     expect(zip.file("csv/payments.csv")).toBeTruthy();
     expect(zip.file("scenario.json")).toBeTruthy();
     expect(zip.file("manifest.json")).toBeTruthy();
+    expect(zip.file("export_manifest.json")).toBeTruthy();
     expect(zip.file("assumptions_report.txt")).toBeTruthy();
+  });
+
+  it("packages selected profile files into a zip", async () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const zipBytes = await scenarioToZip(scenario, { profileId: "erp_finance" });
+    const zip = await JSZip.loadAsync(zipBytes);
+
+    expect(zip.file("csv/customers.csv")).toBeTruthy();
+    expect(zip.file("erp_finance/invoices.csv")).toBeTruthy();
+    expect(zip.file("erp_finance/ar_aging.csv")).toBeTruthy();
+    expect(await zip.file("export_manifest.json")?.async("string")).toContain("erp_finance");
   });
 
   it("returns a zip from the export route", async () => {
@@ -130,6 +142,24 @@ describe("exports", () => {
       `${scenario.metadata.scenarioId}.zip`,
     );
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(100);
+  });
+
+  it("returns a profiled zip from the export route", async () => {
+    const scenario = generateScenario(defaultScenarioInput);
+    const response = await POST(
+      new Request("http://localhost/api/export", {
+        method: "POST",
+        body: JSON.stringify({
+          scenario,
+          profileId: "bi",
+        }),
+      }),
+    );
+    const zip = await JSZip.loadAsync(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(zip.file("bi/fact_order_lines.csv")).toBeTruthy();
+    expect(await zip.file("export_manifest.json")?.async("string")).toContain('"profileId": "bi"');
   });
 
   it("returns 400 for malformed export payloads", async () => {
