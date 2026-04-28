@@ -16,8 +16,8 @@ describe("ScenarioStore", () => {
     const list = store.list();
     const loaded = store.find(scenario.metadata.scenarioId);
 
-    expect(saved.scenarioGroupId).toBe(scenario.metadata.scenarioId);
-    expect(saved.id).toBe(`${scenario.metadata.scenarioId}_v1`);
+    expect(saved.scenarioGroupId).toBe(scenario.metadata.scenarioGroupId);
+    expect(saved.id).toBe(`${scenario.metadata.scenarioGroupId}_v1`);
     expect(list).toHaveLength(1);
     expect(list[0]?.customerCount).toBe(scenario.tables.customers.length);
     expect(loaded?.scenario.metadata.scenarioId).toBe(scenario.metadata.scenarioId);
@@ -43,6 +43,21 @@ describe("ScenarioStore", () => {
     expect(second.id).not.toBe(first.id);
     expect(store.find(first.id)?.industry).toBe(defaultScenarioInput.industry);
     expect(second.industry).toBe("Packaging Materials");
+
+    store.close();
+  });
+
+  it("keeps changed knobs in the same company version family", () => {
+    const dbPath = path.join(mkdtempSync(path.join(tmpdir(), "scenario-store-")), "test.sqlite");
+    const store = new ScenarioStore(dbPath);
+    const firstScenario = generateScenario(defaultScenarioInput);
+    const secondScenario = generateScenario({ ...defaultScenarioInput, seed: 43 });
+    const first = store.save(firstScenario);
+    const second = store.save(secondScenario);
+
+    expect(second.scenarioGroupId).toBe(first.scenarioGroupId);
+    expect(second.versionNumber).toBe(2);
+    expect(second.id).toBe(`${first.scenarioGroupId}_v2`);
 
     store.close();
   });

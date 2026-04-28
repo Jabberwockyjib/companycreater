@@ -90,7 +90,7 @@ export function ScenarioForm({
         />
         <Field label="Data Through">
           <Input
-            type="date"
+            placeholder="YYYY-MM-DD"
             value={value.asOfDate ?? new Date().toISOString().slice(0, 10)}
             onChange={(event) => onChange({ ...value, asOfDate: event.target.value })}
           />

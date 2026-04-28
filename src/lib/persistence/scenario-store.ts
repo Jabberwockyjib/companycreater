@@ -41,6 +41,7 @@ export class ScenarioStore {
       CREATE TABLE IF NOT EXISTS scenarios (
         id TEXT PRIMARY KEY,
         scenario_id TEXT,
+        source_scenario_id TEXT,
         version_number INTEGER,
         parent_version_id TEXT,
         company_name TEXT NOT NULL,
@@ -57,6 +58,7 @@ export class ScenarioStore {
       );
     `);
     this.ensureColumn("scenario_id", "TEXT");
+    this.ensureColumn("source_scenario_id", "TEXT");
     this.ensureColumn("version_number", "INTEGER");
     this.ensureColumn("parent_version_id", "TEXT");
     this.ensureColumn("as_of_date", "TEXT");
@@ -92,16 +94,17 @@ export class ScenarioStore {
     );
     const statement = this.database.prepare(`
       INSERT INTO scenarios (
-        id, scenario_id, version_number, parent_version_id,
+        id, scenario_id, source_scenario_id, version_number, parent_version_id,
         company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
         customer_count, order_count, booked_revenue, scenario_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `);
 
     statement.run(
       summary.id,
       summary.scenarioGroupId,
+      versionedScenario.metadata.scenarioId,
       summary.versionNumber,
       summary.parentVersionId ?? null,
       summary.companyName,
@@ -144,12 +147,12 @@ export class ScenarioStore {
           company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
           customer_count, order_count, booked_revenue, scenario_json
         FROM scenarios
-        WHERE id = ? OR scenario_id = ?
+        WHERE id = ? OR scenario_id = ? OR source_scenario_id = ?
         ORDER BY version_number DESC, updated_at DESC
         LIMIT 1;
       `,
       )
-      .get(id, id) as StoredScenarioRow | undefined;
+      .get(id, id, id) as StoredScenarioRow | undefined;
 
     if (!row) {
       return null;

@@ -74,8 +74,8 @@ export function generateScenario(
   const scenario: GeneratedScenario = {
     metadata: {
       scenarioId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}`,
-      scenarioGroupId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}`,
-      versionId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}_draft`,
+      scenarioGroupId: `company_${slug(parsedInput.companyName)}`,
+      versionId: `company_${slug(parsedInput.companyName)}_draft`,
       versionNumber: 0,
       generatedAt: `${horizon.asOfDate}T00:00:00.000Z`,
       asOfDate: horizon.asOfDate,

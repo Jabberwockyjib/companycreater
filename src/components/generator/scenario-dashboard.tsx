@@ -67,6 +67,12 @@ export function ScenarioDashboard({ scenario }: { scenario: GeneratedScenario | 
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-500">
           <span>Seed {scenario.metadata.seed}</span>
+          {scenario.metadata.historyStartDate && scenario.metadata.asOfDate ? (
+            <span>
+              History {scenario.metadata.historyStartDate} to {scenario.metadata.asOfDate}
+            </span>
+          ) : null}
+          {scenario.metadata.versionNumber ? <span>Version v{scenario.metadata.versionNumber}</span> : null}
           <span>{scenario.profile.regions.join(", ")}</span>
           <span>{scenario.profile.channels.join(", ")}</span>
         </div>
