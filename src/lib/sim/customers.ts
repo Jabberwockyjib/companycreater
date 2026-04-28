@@ -7,6 +7,7 @@ import type {
   Territory,
 } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { clampDate, getScenarioHorizon } from "./time";
 
 const COMPANY_PREFIXES = ["Atlas", "Beacon", "Cobalt", "Delta", "Evergreen", "Frontier", "Granite", "Harbor", "Keystone", "Liberty", "Meridian", "Northstar"];
 const COMPANY_SUFFIXES = ["Manufacturing", "Systems", "Fabrication", "Supply", "Industrial", "Works", "Technologies", "Logistics"];
@@ -30,6 +31,7 @@ export function generateCustomers(
   const customers: Customer[] = [];
   const contacts: Contact[] = [];
   const lifecycleEvents: LifecycleEvent[] = [];
+  const horizon = getScenarioHorizon(input);
   const lostCount =
     input.churnRate === 0 ? 0 : Math.max(1, Math.floor(input.customerCount * input.churnRate));
 
@@ -82,14 +84,20 @@ export function generateCustomers(
       {
         id: `lifecycle_${index + 1}_lead`,
         customerId: id,
-        eventDate: `${input.startYear}-01-${String((index % 27) + 1).padStart(2, "0")}`,
+        eventDate: clampDate(
+          `${horizon.startDate.slice(0, 7)}-${String((index % 27) + 1).padStart(2, "0")}`,
+          horizon.asOfDate,
+        ),
         eventType: "lead_created",
         narrative: `${name} entered the pipeline.`,
       },
       {
         id: `lifecycle_${index + 1}_onboarded`,
         customerId: id,
-        eventDate: `${input.startYear}-02-${String((index % 27) + 1).padStart(2, "0")}`,
+        eventDate: clampDate(
+          addMonths(horizon.startDate, 1, String((index % 27) + 1).padStart(2, "0")),
+          horizon.asOfDate,
+        ),
         eventType: "onboarded",
         narrative: `${name} completed onboarding.`,
       },
@@ -99,7 +107,10 @@ export function generateCustomers(
       lifecycleEvents.push({
         id: `lifecycle_${index + 1}_lost`,
         customerId: id,
-        eventDate: `${input.startYear + input.years - 1}-11-${String((index % 27) + 1).padStart(2, "0")}`,
+        eventDate: clampDate(
+          addMonths(horizon.startDate, Math.max(2, horizon.totalMonths - 2), String((index % 27) + 1).padStart(2, "0")),
+          horizon.asOfDate,
+        ),
         eventType: "lost",
         narrative: `${name} was marked lost based on churn assumptions.`,
       });
@@ -107,6 +118,16 @@ export function generateCustomers(
   }
 
   return { customers, contacts, lifecycleEvents };
+}
+
+function addMonths(dateString: string, offset: number, day: string): string {
+  const year = Number(dateString.slice(0, 4));
+  const month = Number(dateString.slice(5, 7));
+  const absoluteMonth = month - 1 + offset;
+  const targetYear = year + Math.floor(absoluteMonth / 12);
+  const targetMonth = (absoluteMonth % 12) + 1;
+
+  return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${day}`;
 }
 
 function buildContactRoles(

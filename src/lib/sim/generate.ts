@@ -7,6 +7,7 @@ import { generateProducts } from "./products";
 import { SeededRandom } from "./random";
 import { generateOpportunities, generateSalesOrg } from "./sales";
 import { generateSupply } from "./supply";
+import { getScenarioHorizon, normalizeScenarioInputDates } from "./time";
 import { validateScenario } from "./validate";
 
 const BOOKING_REALIZATION_MULTIPLIER = 1.1;
@@ -19,7 +20,8 @@ export function generateScenario(
   input: ScenarioInput,
   options: GenerateScenarioOptions = {},
 ): GeneratedScenario {
-  const parsedInput = scenarioInputSchema.parse(input);
+  const parsedInput = normalizeScenarioInputDates(scenarioInputSchema.parse(input));
+  const horizon = getScenarioHorizon(parsedInput);
   const random = new SeededRandom(parsedInput.seed);
   const baseProfile = buildCompanyProfile(parsedInput);
   const profile = options.researchProfile
@@ -46,7 +48,7 @@ export function generateScenario(
     {
       ...parsedInput,
       revenueTarget:
-        parsedInput.revenueTarget * parsedInput.years * BOOKING_REALIZATION_MULTIPLIER,
+        parsedInput.revenueTarget * horizon.revenueYears * BOOKING_REALIZATION_MULTIPLIER,
     },
     random,
     customers,
@@ -72,9 +74,15 @@ export function generateScenario(
   const scenario: GeneratedScenario = {
     metadata: {
       scenarioId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}`,
-      generatedAt: "2026-04-24T00:00:00.000Z",
+      scenarioGroupId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}`,
+      versionId: `scenario_${parsedInput.seed}_${slug(parsedInput.companyName)}_draft`,
+      versionNumber: 0,
+      generatedAt: `${horizon.asOfDate}T00:00:00.000Z`,
+      asOfDate: horizon.asOfDate,
+      historyStartDate: horizon.startDate,
       seed: parsedInput.seed,
       mode: parsedInput.mode,
+      input: parsedInput,
     },
     profile,
     tables: {
@@ -101,6 +109,7 @@ export function generateScenario(
     assumptionsReport: [
       "Scenario input values are treated as user assumptions, including revenue target and operating scope.",
       "Private operating data, including customers, orders, supply events, returns, rejections, and credits, is synthetic.",
+      `Generated history spans ${horizon.startDate} through ${horizon.asOfDate}.`,
       buildTrajectoryAssumption(parsedInput),
       buildChurnAssumption(parsedInput),
       "Revenue totals are approximate simulator outputs; formal validation is handled in a later task.",

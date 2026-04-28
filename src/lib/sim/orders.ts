@@ -1,5 +1,6 @@
 import type { Customer, InventoryPosition, Invoice, LifecycleEvent, MonthlyRevenue, Opportunity, Order, OrderLineItem, PaymentRecord, Salesperson, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { clampDate, getScenarioHorizon, monthAtOffset, monthDistance } from "./time";
 
 const PAYMENT_METHODS = ["ach", "check", "wire", "card"] as const;
 const EXPECTED_ORDER_DISCOUNT_RATE = 0.04;
@@ -34,7 +35,8 @@ export function generateOrders(
   const invoices: Invoice[] = [];
   const payments: PaymentRecord[] = [];
   const monthlyRevenue = buildMonthlyRevenue(input);
-  const finalPaymentDate = `${input.startYear + input.years - 1}-12-28`;
+  const horizon = getScenarioHorizon(input);
+  const finalPaymentDate = horizon.asOfDate;
   const lostDateByCustomer = new Map(
     lifecycleEvents
       .filter((event) => event.eventType === "lost")
@@ -70,8 +72,6 @@ export function generateOrders(
     };
     const { customer, salesperson, opportunity } = plannedOrder.plan;
     const orderDate = plannedOrder.orderDate;
-    const year = Number(orderDate.slice(0, 4));
-    const month = Number(orderDate.slice(5, 7));
     const lineCount = buildLineCount(plannedOrder.targetSubtotal, random);
     const lineWeights = buildWeights(lineCount, random);
     const lineWeightTotal = lineWeights.reduce((total, weight) => total + weight, 0);
@@ -114,7 +114,7 @@ export function generateOrders(
       paidAmount > 0
         ? addDaysClamped(orderDate, random.int(Math.max(5, termDays - 10), termDays + 30), finalPaymentDate)
         : undefined;
-    const monthBucket = monthlyRevenue.find((row) => row.month === `${year}-${String(month).padStart(2, "0")}`);
+    const monthBucket = monthlyRevenue.find((row) => row.month === orderDate.slice(0, 7));
 
     if (monthBucket) {
       monthBucket.bookedRevenue = round(monthBucket.bookedRevenue + total);
@@ -241,7 +241,10 @@ function buildOrderCount(
     customer.riskProfile === "high" ? 0.65 : customer.riskProfile === "medium" ? 0.9 : 1.1;
   const lostMultiplier = isLost ? 0.7 : 1;
 
-  return Math.max(1, Math.round(input.years * baseAnnualOrders * riskMultiplier * lostMultiplier));
+  return Math.max(
+    1,
+    Math.round(getScenarioHorizon(input).revenueYears * baseAnnualOrders * riskMultiplier * lostMultiplier),
+  );
 }
 
 function buildAffinityFamilyIds(customer: Customer, skus: Sku[]): string[] {
@@ -298,7 +301,7 @@ function buildAvailableMonths(
   lostDateByCustomer: Map<string, string>,
 ): number[] {
   const lostDate = lostDateByCustomer.get(customer.id);
-  const totalMonths = input.years * 12;
+  const totalMonths = getScenarioHorizon(input).totalMonths;
 
   if (!lostDate) {
     return Array.from({ length: totalMonths }, (_, index) => index);
@@ -306,7 +309,10 @@ function buildAvailableMonths(
 
   const lostYear = Number(lostDate.slice(0, 4));
   const lostMonth = Number(lostDate.slice(5, 7));
-  const monthsBeforeLoss = Math.max(1, (lostYear - input.startYear) * 12 + lostMonth - 1);
+  const monthsBeforeLoss = Math.max(
+    1,
+    monthDistance(getScenarioHorizon(input).startDate, `${lostYear}-${String(lostMonth).padStart(2, "0")}-01`),
+  );
 
   return Array.from({ length: monthsBeforeLoss }, (_, index) => index);
 }
@@ -475,9 +481,13 @@ function buildAvailableQuantity(
 }
 
 function trajectoryMultiplier(input: ScenarioInput, orderDate: string): number {
+  const horizon = getScenarioHorizon(input);
   const orderMonth =
-    (Number(orderDate.slice(0, 4)) - input.startYear) * 12 + Number(orderDate.slice(5, 7)) - 1;
-  const progress = input.years <= 1 ? 0 : orderMonth / Math.max(1, input.years * 12 - 1);
+    (Number(orderDate.slice(0, 4)) - horizon.startYear) * 12 +
+    Number(orderDate.slice(5, 7)) -
+    Number(horizon.startDate.slice(5, 7));
+  const progress =
+    horizon.totalMonths <= 1 ? 0 : orderMonth / Math.max(1, horizon.totalMonths - 1);
 
   switch (input.trajectory ?? "stable") {
     case "growth":
@@ -497,12 +507,12 @@ function trajectoryMultiplier(input: ScenarioInput, orderDate: string): number {
 }
 
 function buildMonthlyRevenue(input: ScenarioInput): MonthlyRevenue[] {
-  return Array.from({ length: input.years * 12 }, (_, index) => {
-    const year = input.startYear + Math.floor(index / 12);
-    const month = (index % 12) + 1;
+  const horizon = getScenarioHorizon(input);
 
+  return Array.from({ length: horizon.totalMonths }, (_, index) => {
+    const month = monthAtOffset(input, index);
     return {
-      month: `${year}-${String(month).padStart(2, "0")}`,
+      month: month.monthKey,
       bookedRevenue: 0,
       invoicedRevenue: 0,
       collectedRevenue: 0,
@@ -559,22 +569,26 @@ function buildOrderDate(
   monthOffset: number,
 ): string {
   const lostDate = lostDateByCustomer.get(customer.id);
+  const horizon = getScenarioHorizon(input);
 
   if (!lostDate) {
-    const year = input.startYear + Math.floor(monthOffset / 12);
-    const month = (monthOffset % 12) + 1;
+    const month = monthAtOffset(input, monthOffset);
+    const date = `${month.monthKey}-${String(random.int(1, 28)).padStart(2, "0")}`;
 
-    return `${year}-${String(month).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`;
+    return clampDate(date, horizon.asOfDate);
   }
 
   const lostYear = Number(lostDate.slice(0, 4));
   const lostMonth = Number(lostDate.slice(5, 7));
-  const monthsBeforeLoss = Math.max(1, (lostYear - input.startYear) * 12 + lostMonth - 1);
+  const monthsBeforeLoss = Math.max(
+    1,
+    monthDistance(horizon.startDate, `${lostYear}-${String(lostMonth).padStart(2, "0")}-01`),
+  );
   const boundedMonthOffset = monthOffset % monthsBeforeLoss;
-  const year = input.startYear + Math.floor(boundedMonthOffset / 12);
-  const month = (boundedMonthOffset % 12) + 1;
+  const month = monthAtOffset(input, boundedMonthOffset);
+  const date = `${month.monthKey}-${String(random.int(1, 28)).padStart(2, "0")}`;
 
-  return `${year}-${String(month).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`;
+  return clampDate(date, horizon.asOfDate);
 }
 
 function round(value: number): number {

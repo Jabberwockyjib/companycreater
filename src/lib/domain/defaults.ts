@@ -9,6 +9,8 @@ export const defaultScenarioInput: ScenarioInput = {
   revenueTarget: 75_000_000,
   startYear: 2023,
   years: 3,
+  historyYears: 3,
+  asOfDate: new Date().toISOString().slice(0, 10),
   customerCount: 120,
   skuCount: 160,
   salesRepCount: 14,

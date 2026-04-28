@@ -105,6 +105,14 @@ export default function Home() {
     researchProfile?.claims.filter((claim) => claim.field.startsWith("ai.")).length ?? 0;
   const scenarioStatus = scenario ? "Scenario ready" : isGenerating ? "Generating" : "No run yet";
 
+  function loadScenario(generatedScenario: GeneratedScenario) {
+    setScenario(generatedScenario);
+
+    if (generatedScenario.metadata.input) {
+      setInput(generatedScenario.metadata.input);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f4f7f7] text-slate-950">
       <div className="border-b border-slate-200 bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
@@ -157,7 +165,7 @@ export default function Home() {
         </div>
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px_420px]">
           <ValidationPanel scenario={scenario} />
-          <ScenarioLibrary scenario={scenario} onLoad={setScenario} />
+          <ScenarioLibrary scenario={scenario} onLoad={loadScenario} />
           <ExportPanel scenario={scenario} />
         </div>
       </div>

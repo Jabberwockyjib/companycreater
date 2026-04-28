@@ -1,5 +1,6 @@
 import type { CreditRecord, Order, OrderLineItem, RejectionRecord, ReturnRecord, ScenarioInput, Sku, SupplyEvent } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { clampDate, getScenarioHorizon, monthAtOffset } from "./time";
 
 const EVENT_TYPES = ["lead_time_extension", "stockout", "allocation"] as const;
 const SEVERITIES = ["low", "medium", "high"] as const;
@@ -19,16 +20,20 @@ export function generateSupply(
   credits: CreditRecord[];
 } {
   const eventCount = input.disruptionLevel === "high" ? 12 : input.disruptionLevel === "moderate" ? 7 : 3;
-  const finalAdjustmentDate = `${input.startYear + input.years - 1}-12-28`;
+  const horizon = getScenarioHorizon(input);
+  const finalAdjustmentDate = horizon.asOfDate;
   const supplyEvents = Array.from({ length: eventCount }, (_, index): SupplyEvent => {
-    const startMonth = random.int(1, 12);
-    const startDate = `${input.startYear + random.int(0, input.years - 1)}-${String(startMonth).padStart(2, "0")}-${String(random.int(1, 24)).padStart(2, "0")}`;
+    const eventMonth = monthAtOffset(input, random.int(0, Math.max(0, horizon.totalMonths - 1)));
+    const startDate = clampDate(
+      `${eventMonth.monthKey}-${String(random.int(1, 24)).padStart(2, "0")}`,
+      horizon.asOfDate,
+    );
 
     return {
       id: `supply_event_${index + 1}`,
       skuId: random.pick(skus).id,
       startDate,
-      endDate: addDays(startDate, random.int(7, 45)),
+      endDate: clampDate(addDays(startDate, random.int(7, 45)), horizon.asOfDate),
       eventType: random.pick(EVENT_TYPES),
       severity: input.disruptionLevel === "high" ? random.pick(SEVERITIES) : index % 3 === 0 ? "medium" : "low",
       narrative: "Synthetic supply disruption generated from scenario disruption assumptions.",

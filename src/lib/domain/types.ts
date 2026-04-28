@@ -19,6 +19,8 @@ export interface ScenarioInput {
   revenueTarget: number;
   startYear: number;
   years: number;
+  historyYears?: number;
+  asOfDate?: string;
   customerCount: number;
   skuCount: number;
   salesRepCount: number;
@@ -245,9 +247,16 @@ export interface ValidationMessage {
 export interface GeneratedScenario {
   metadata: {
     scenarioId: string;
+    scenarioGroupId?: string;
+    versionId?: string;
+    versionNumber?: number;
+    previousVersionId?: string;
     generatedAt: string;
+    asOfDate?: string;
+    historyStartDate?: string;
     seed: number;
     mode: ScenarioMode;
+    input?: ScenarioInput;
   };
   profile: CompanyProfile;
   tables: {

@@ -24,6 +24,32 @@ describe("generateScenario", () => {
     expect(scenario.tables.orders.length).toBeGreaterThan(defaultScenarioInput.customerCount);
   });
 
+  it("creates relative history through an as-of date without future-dated facts", () => {
+    const scenario = generateScenario({
+      ...defaultScenarioInput,
+      historyYears: 2,
+      asOfDate: "2026-04-28",
+    });
+    const datedValues = [
+      ...scenario.tables.orders.map((order) => order.orderDate),
+      ...scenario.tables.invoices.map((invoice) => invoice.invoiceDate),
+      ...scenario.tables.payments.map((payment) => payment.paymentDate),
+      ...scenario.tables.returns.map((record) => record.returnDate),
+      ...scenario.tables.rejections.map((record) => record.rejectionDate),
+      ...scenario.tables.credits.map((credit) => credit.creditDate),
+      ...scenario.tables.supplyEvents.flatMap((event) => [event.startDate, event.endDate]),
+      ...scenario.tables.lifecycleEvents.map((event) => event.eventDate),
+      ...scenario.tables.opportunities.map((opportunity) => opportunity.closeDate),
+    ];
+
+    expect(scenario.metadata.asOfDate).toBe("2026-04-28");
+    expect(scenario.metadata.historyStartDate).toBe("2024-04-28");
+    expect(scenario.metadata.input?.historyYears).toBe(2);
+    expect(scenario.tables.monthlyRevenue[0]?.month).toBe("2024-04");
+    expect(scenario.tables.monthlyRevenue.at(-1)?.month).toBe("2026-04");
+    expect(datedValues.every((date) => date <= "2026-04-28")).toBe(true);
+  });
+
   it("creates buyer group contacts for each customer", () => {
     const scenario = generateScenario(defaultScenarioInput);
     const contactsByCustomer = new Map<string, Set<string>>();

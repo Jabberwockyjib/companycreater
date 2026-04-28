@@ -8,7 +8,9 @@ export const scenarioInputSchema = z.object({
   industry: z.string().min(2),
   revenueTarget: z.number().min(25_000_000).max(200_000_000),
   startYear: z.number().int().min(2018).max(2026),
-  years: z.number().int().min(1).max(5),
+  years: z.number().int().min(1).max(6),
+  historyYears: z.number().int().min(1).max(5).optional(),
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   customerCount: z.number().int().min(20).max(500),
   skuCount: z.number().int().min(10).max(1000),
   salesRepCount: z.number().int().min(3).max(80),
@@ -246,9 +248,16 @@ export const companyProfileSchema = z.object({
 export const generatedScenarioSchema = z.object({
   metadata: z.object({
     scenarioId: z.string(),
+    scenarioGroupId: z.string().optional(),
+    versionId: z.string().optional(),
+    versionNumber: z.number().int().optional(),
+    previousVersionId: z.string().optional(),
     generatedAt: z.string(),
+    asOfDate: z.string().optional(),
+    historyStartDate: z.string().optional(),
     seed: z.number().int(),
     mode: z.enum(["fictional", "real_company"]),
+    input: scenarioInputSchema.optional(),
   }),
   profile: companyProfileSchema,
   tables: z.object({

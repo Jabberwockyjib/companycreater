@@ -16,7 +16,8 @@ describe("ScenarioStore", () => {
     const list = store.list();
     const loaded = store.find(scenario.metadata.scenarioId);
 
-    expect(saved.id).toBe(scenario.metadata.scenarioId);
+    expect(saved.scenarioGroupId).toBe(scenario.metadata.scenarioId);
+    expect(saved.id).toBe(`${scenario.metadata.scenarioId}_v1`);
     expect(list).toHaveLength(1);
     expect(list[0]?.customerCount).toBe(scenario.tables.customers.length);
     expect(loaded?.scenario.metadata.scenarioId).toBe(scenario.metadata.scenarioId);
@@ -25,7 +26,7 @@ describe("ScenarioStore", () => {
     store.close();
   });
 
-  it("updates an existing scenario without changing createdAt", () => {
+  it("saves repeated runs as versions without overwriting earlier data", () => {
     const dbPath = path.join(mkdtempSync(path.join(tmpdir(), "scenario-store-")), "test.sqlite");
     const store = new ScenarioStore(dbPath);
     const scenario = generateScenario(defaultScenarioInput);
@@ -35,8 +36,12 @@ describe("ScenarioStore", () => {
       profile: { ...scenario.profile, industry: "Packaging Materials" },
     });
 
-    expect(store.list()).toHaveLength(1);
-    expect(second.createdAt).toBe(first.createdAt);
+    expect(store.list()).toHaveLength(2);
+    expect(first.versionNumber).toBe(1);
+    expect(second.versionNumber).toBe(2);
+    expect(second.scenarioGroupId).toBe(first.scenarioGroupId);
+    expect(second.id).not.toBe(first.id);
+    expect(store.find(first.id)?.industry).toBe(defaultScenarioInput.industry);
     expect(second.industry).toBe("Packaging Materials");
 
     store.close();

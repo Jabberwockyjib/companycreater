@@ -1,5 +1,6 @@
 import type { Customer, Opportunity, Salesperson, ScenarioInput, Territory } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { clampDate, getScenarioHorizon, monthAtOffset } from "./time";
 
 const FIRST_NAMES = ["Alex", "Bailey", "Cameron", "Drew", "Elliot", "Francis", "Gale", "Hayden", "Jamie", "Kendall", "Logan", "Micah", "Quinn", "Reese"];
 const LAST_NAMES = ["Anderson", "Brooks", "Campbell", "Davis", "Edwards", "Flores", "Garcia", "Hughes", "Kim", "Long", "Murphy", "Patel", "Rivera", "Young"];
@@ -67,11 +68,19 @@ export function generateOpportunities(
   customers: Customer[],
   salespeople: Salesperson[],
 ): Opportunity[] {
+  const horizon = getScenarioHorizon(input);
+
   return customers.map((customer, index): Opportunity => {
     const salesperson =
       salespeople.find((candidate) => candidate.id === customer.accountOwnerId) ??
       (salespeople[index % salespeople.length] as Salesperson);
     const stage = "closed_won";
+
+    const closeMonth = monthAtOffset(input, random.int(0, Math.max(0, horizon.totalMonths - 1)));
+    const closeDate = clampDate(
+      `${closeMonth.monthKey}-${String(random.int(1, 28)).padStart(2, "0")}`,
+      horizon.asOfDate,
+    );
 
     return {
       id: `opportunity_${index + 1}`,
@@ -79,7 +88,7 @@ export function generateOpportunities(
       salespersonId: salesperson.id,
       stage,
       expectedValue: round(customer.annualPotential * random.money(0.15, 0.55)),
-      closeDate: `${input.startYear + random.int(0, input.years - 1)}-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}`,
+      closeDate,
       cycleDays: random.int(28, 180),
       closeReason:
         customer.accountStatus === "lost"

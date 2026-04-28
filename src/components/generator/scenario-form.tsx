@@ -84,15 +84,17 @@ export function ScenarioForm({
           onChange={(seed) => onChange({ ...value, seed })}
         />
         <NumberField
-          label="Start Year"
-          value={value.startYear}
-          onChange={(startYear) => onChange({ ...value, startYear })}
+          label="Years of History"
+          value={value.historyYears ?? value.years}
+          onChange={(historyYears) => onChange({ ...value, historyYears })}
         />
-        <NumberField
-          label="Years"
-          value={value.years}
-          onChange={(years) => onChange({ ...value, years })}
-        />
+        <Field label="Data Through">
+          <Input
+            type="date"
+            value={value.asOfDate ?? new Date().toISOString().slice(0, 10)}
+            onChange={(event) => onChange({ ...value, asOfDate: event.target.value })}
+          />
+        </Field>
         <NumberField
           label="Customers"
           value={value.customerCount}

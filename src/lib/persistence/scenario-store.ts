@@ -5,9 +5,14 @@ import type { GeneratedScenario } from "@/lib/domain/types";
 
 export interface ScenarioSummary {
   id: string;
+  scenarioGroupId: string;
+  versionNumber: number;
+  parentVersionId?: string;
   companyName: string;
   industry: string;
   mode: string;
+  asOfDate?: string;
+  historyStartDate?: string;
   createdAt: string;
   updatedAt: string;
   customerCount: number;
@@ -35,9 +40,14 @@ export class ScenarioStore {
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS scenarios (
         id TEXT PRIMARY KEY,
+        scenario_id TEXT,
+        version_number INTEGER,
+        parent_version_id TEXT,
         company_name TEXT NOT NULL,
         industry TEXT NOT NULL,
         mode TEXT NOT NULL,
+        as_of_date TEXT,
+        history_start_date TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         customer_count INTEGER NOT NULL,
@@ -46,51 +56,76 @@ export class ScenarioStore {
         scenario_json TEXT NOT NULL
       );
     `);
+    this.ensureColumn("scenario_id", "TEXT");
+    this.ensureColumn("version_number", "INTEGER");
+    this.ensureColumn("parent_version_id", "TEXT");
+    this.ensureColumn("as_of_date", "TEXT");
+    this.ensureColumn("history_start_date", "TEXT");
   }
 
-  save(scenario: GeneratedScenario): StoredScenario {
+  save(scenario: GeneratedScenario, options: { parentVersionId?: string } = {}): StoredScenario {
     const now = new Date().toISOString();
-    const existing = this.find(scenario.metadata.scenarioId);
-    const createdAt = existing?.createdAt ?? now;
-    const summary = summarizeScenario(scenario, createdAt, now);
+    const scenarioGroupId = scenario.metadata.scenarioGroupId ?? scenario.metadata.scenarioId;
+    const versionNumber = this.nextVersionNumber(scenarioGroupId);
+    const versionId = `${scenarioGroupId}_v${versionNumber}`;
+    const createdAt =
+      this.listVersions(scenarioGroupId).at(-1)?.createdAt ??
+      now;
+    const versionedScenario: GeneratedScenario = {
+      ...scenario,
+      metadata: {
+        ...scenario.metadata,
+        scenarioGroupId,
+        versionId,
+        versionNumber,
+        previousVersionId: options.parentVersionId ?? scenario.metadata.previousVersionId,
+      },
+    };
+    const summary = summarizeScenario(
+      versionedScenario,
+      createdAt,
+      now,
+      versionId,
+      scenarioGroupId,
+      versionNumber,
+      options.parentVersionId ?? scenario.metadata.previousVersionId,
+    );
     const statement = this.database.prepare(`
       INSERT INTO scenarios (
-        id, company_name, industry, mode, created_at, updated_at,
+        id, scenario_id, version_number, parent_version_id,
+        company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
         customer_count, order_count, booked_revenue, scenario_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        company_name = excluded.company_name,
-        industry = excluded.industry,
-        mode = excluded.mode,
-        updated_at = excluded.updated_at,
-        customer_count = excluded.customer_count,
-        order_count = excluded.order_count,
-        booked_revenue = excluded.booked_revenue,
-        scenario_json = excluded.scenario_json;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `);
 
     statement.run(
       summary.id,
+      summary.scenarioGroupId,
+      summary.versionNumber,
+      summary.parentVersionId ?? null,
       summary.companyName,
       summary.industry,
       summary.mode,
+      summary.asOfDate ?? null,
+      summary.historyStartDate ?? null,
       summary.createdAt,
       summary.updatedAt,
       summary.customerCount,
       summary.orderCount,
       summary.bookedRevenue,
-      JSON.stringify(scenario),
+      JSON.stringify(versionedScenario),
     );
 
-    return { ...summary, scenario };
+    return { ...summary, scenario: versionedScenario };
   }
 
   list(): ScenarioSummary[] {
     const rows = this.database
       .prepare(
         `
-        SELECT id, company_name, industry, mode, created_at, updated_at,
+        SELECT id, scenario_id, version_number, parent_version_id,
+          company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
           customer_count, order_count, booked_revenue
         FROM scenarios
         ORDER BY updated_at DESC;
@@ -105,13 +140,16 @@ export class ScenarioStore {
     const row = this.database
       .prepare(
         `
-        SELECT id, company_name, industry, mode, created_at, updated_at,
+        SELECT id, scenario_id, version_number, parent_version_id,
+          company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
           customer_count, order_count, booked_revenue, scenario_json
         FROM scenarios
-        WHERE id = ?;
+        WHERE id = ? OR scenario_id = ?
+        ORDER BY version_number DESC, updated_at DESC
+        LIMIT 1;
       `,
       )
-      .get(id) as StoredScenarioRow | undefined;
+      .get(id, id) as StoredScenarioRow | undefined;
 
     if (!row) {
       return null;
@@ -126,13 +164,55 @@ export class ScenarioStore {
   close() {
     this.database.close();
   }
+
+  private listVersions(scenarioGroupId: string): ScenarioSummary[] {
+    const rows = this.database
+      .prepare(
+        `
+        SELECT id, scenario_id, version_number, parent_version_id,
+          company_name, industry, mode, as_of_date, history_start_date, created_at, updated_at,
+          customer_count, order_count, booked_revenue
+        FROM scenarios
+        WHERE scenario_id = ?
+        ORDER BY version_number DESC;
+      `,
+      )
+      .all(scenarioGroupId) as unknown as StoredScenarioRow[];
+
+    return rows.map(rowToSummary);
+  }
+
+  private nextVersionNumber(scenarioGroupId: string): number {
+    const row = this.database
+      .prepare("SELECT MAX(version_number) as version_number FROM scenarios WHERE scenario_id = ?")
+      .get(scenarioGroupId) as { version_number?: number } | undefined;
+
+    return (row?.version_number ?? 0) + 1;
+  }
+
+  private ensureColumn(name: string, definition: string): void {
+    const columns = this.database.prepare("PRAGMA table_info(scenarios);").all() as Array<{
+      name: string;
+    }>;
+
+    if (columns.some((column) => column.name === name)) {
+      return;
+    }
+
+    this.database.exec(`ALTER TABLE scenarios ADD COLUMN ${name} ${definition};`);
+  }
 }
 
 interface StoredScenarioRow {
   id: string;
+  scenario_id?: string;
+  version_number?: number;
+  parent_version_id?: string | null;
   company_name: string;
   industry: string;
   mode: string;
+  as_of_date?: string | null;
+  history_start_date?: string | null;
   created_at: string;
   updated_at: string;
   customer_count: number;
@@ -145,12 +225,21 @@ function summarizeScenario(
   scenario: GeneratedScenario,
   createdAt: string,
   updatedAt: string,
+  versionId = scenario.metadata.versionId ?? scenario.metadata.scenarioId,
+  scenarioGroupId = scenario.metadata.scenarioGroupId ?? scenario.metadata.scenarioId,
+  versionNumber = scenario.metadata.versionNumber ?? 1,
+  parentVersionId = scenario.metadata.previousVersionId,
 ): ScenarioSummary {
   return {
-    id: scenario.metadata.scenarioId,
+    id: versionId,
+    scenarioGroupId,
+    versionNumber,
+    parentVersionId,
     companyName: scenario.profile.companyName,
     industry: scenario.profile.industry,
     mode: scenario.metadata.mode,
+    asOfDate: scenario.metadata.asOfDate,
+    historyStartDate: scenario.metadata.historyStartDate,
     createdAt,
     updatedAt,
     customerCount: scenario.tables.customers.length,
@@ -165,9 +254,14 @@ function summarizeScenario(
 function rowToSummary(row: StoredScenarioRow): ScenarioSummary {
   return {
     id: row.id,
+    scenarioGroupId: row.scenario_id ?? row.id,
+    versionNumber: row.version_number ?? 1,
+    parentVersionId: row.parent_version_id ?? undefined,
     companyName: row.company_name,
     industry: row.industry,
     mode: row.mode,
+    asOfDate: row.as_of_date ?? undefined,
+    historyStartDate: row.history_start_date ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     customerCount: row.customer_count,
