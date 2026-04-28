@@ -5,6 +5,7 @@ import { validationDetails } from "@/lib/domain/validation";
 import { getLlmProvider, isLlmResearchEnabled } from "@/lib/model/providers";
 import { buildResearchExtractionPrompt, researchExtractionSystemPrompt } from "@/lib/model/prompts";
 import type { ResearchExtraction } from "@/lib/model/types";
+import { extractResearchSignalsFromSources, mergeResearchExtractions } from "@/lib/research/extraction";
 import { buildProfileFromSources } from "@/lib/research/profile-builder";
 import { collectResearchSources } from "@/lib/research/sources";
 
@@ -42,7 +43,10 @@ export async function POST(request: Request) {
   try {
     const input = parsedInput.data;
     const sources = await collectResearchSources(input.companyName, input.companyUrl || undefined);
-    const extraction = await extractPublicResearchSignals(sources);
+    const extraction = mergeResearchExtractions(
+      extractResearchSignalsFromSources(sources),
+      await extractPublicResearchSignals(sources),
+    );
     const profile = buildProfileFromSources(input, sources, extraction);
 
     return NextResponse.json({ profile, sources });

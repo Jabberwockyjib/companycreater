@@ -84,6 +84,26 @@ describe("research source hardening", () => {
     vi.unstubAllGlobals();
   });
 
+  it("strips markup before applying the source text limit", async () => {
+    const longStyle = `<style>${".theme{color:red;}".repeat(1_400)}</style>`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(`${longStyle}<main>Enclosed Drives Open Gearing Custom Drives</main>`, {
+          status: 200,
+        }),
+      ),
+    );
+
+    const sources = await collectResearchSources("Cleveland Gear Company", "https://example.com");
+
+    expect(sources[0]?.text).toContain("Enclosed Drives");
+    expect(sources[0]?.text).toContain("Open Gearing");
+    expect(sources[0]?.text).not.toContain(".theme");
+    expect(sources[0]?.text.length).toBeLessThanOrEqual(20_000);
+    vi.unstubAllGlobals();
+  });
+
   it("discovers and fetches relevant same-site research pages", async () => {
     const fetchSpy = vi.fn(async (url: string) => {
       if (url === "https://example.com/") {

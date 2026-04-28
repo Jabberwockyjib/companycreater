@@ -27,7 +27,6 @@ const RESEARCH_LINK_KEYWORDS = [
 
 function stripHtml(html: string) {
   return html
-    .slice(0, MAX_SOURCE_TEXT_LENGTH)
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
