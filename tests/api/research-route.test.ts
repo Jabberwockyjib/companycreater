@@ -8,6 +8,20 @@ describe("/api/research", () => {
     vi.unstubAllEnvs();
   });
 
+  it("returns field-level details for invalid research input", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/research", {
+        method: "POST",
+        body: JSON.stringify({ ...defaultScenarioInput, revenueTarget: 1_000_000 }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Invalid research input");
+    expect(payload.details).toContain("Revenue target must be between $25M and $200M.");
+  });
+
   it("adds Gemini research extraction claims when AI research is enabled", async () => {
     vi.stubEnv("LLM_PROVIDER", "gemini");
     vi.stubEnv("LLM_MODEL", "gemini-test-model");

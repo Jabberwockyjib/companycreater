@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { scenarioInputSchema } from "@/lib/domain/schemas";
+import { validationDetails } from "@/lib/domain/validation";
 import { getLlmProvider, isLlmResearchEnabled } from "@/lib/model/providers";
 import { buildResearchExtractionPrompt, researchExtractionSystemPrompt } from "@/lib/model/prompts";
 import type { ResearchExtraction } from "@/lib/model/types";
@@ -29,7 +30,13 @@ export async function POST(request: Request) {
   const parsedInput = scenarioInputSchema.safeParse(body);
 
   if (!parsedInput.success) {
-    return NextResponse.json({ error: "Invalid research input" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Invalid research input",
+        details: validationDetails(parsedInput.error),
+      },
+      { status: 400 },
+    );
   }
 
   try {

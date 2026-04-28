@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { companyProfileSchema, scenarioInputSchema } from "@/lib/domain/schemas";
 import type { GeneratedScenario, ScenarioInput } from "@/lib/domain/types";
+import { validationDetails } from "@/lib/domain/validation";
 import { generateScenario, type GenerateScenarioOptions } from "@/lib/sim/generate";
 
 type ScenarioGenerator = (input: ScenarioInput, options?: GenerateScenarioOptions) => GeneratedScenario;
@@ -56,23 +57,4 @@ export async function handleGenerateRequest(
 
 export async function POST(request: Request) {
   return handleGenerateRequest(request);
-}
-
-function validationDetails(error: z.ZodError): string[] {
-  const details = new Set<string>();
-
-  for (const issue of error.issues) {
-    if (issue.code === "invalid_union") {
-      for (const nestedError of issue.errors) {
-        for (const nestedIssue of nestedError) {
-          details.add(nestedIssue.message);
-        }
-      }
-      continue;
-    }
-
-    details.add(issue.message);
-  }
-
-  return [...details].filter((message) => message !== "Invalid input");
 }

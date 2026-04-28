@@ -35,7 +35,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        setResearchError("Research input is outside the supported MVP bounds.");
+        setResearchError(await readRequestError(response, "Research input is outside the supported MVP bounds."));
         return;
       }
 
