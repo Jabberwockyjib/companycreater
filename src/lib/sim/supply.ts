@@ -1,5 +1,16 @@
-import type { CreditRecord, Order, OrderLineItem, RejectionRecord, ReturnRecord, ScenarioInput, Sku, SupplyEvent } from "@/lib/domain/types";
+import type {
+  CompanyProfile,
+  CreditRecord,
+  Order,
+  OrderLineItem,
+  RejectionRecord,
+  ReturnRecord,
+  ScenarioInput,
+  Sku,
+  SupplyEvent,
+} from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { buildResearchContext, pickResearchSignal } from "./research-context";
 import { clampDate, getScenarioHorizon, monthAtOffset } from "./time";
 
 const EVENT_TYPES = ["lead_time_extension", "stockout", "allocation"] as const;
@@ -13,6 +24,7 @@ export function generateSupply(
   skus: Sku[],
   orders: Order[],
   orderLineItems: OrderLineItem[],
+  profile?: CompanyProfile,
 ): {
   supplyEvents: SupplyEvent[];
   returns: ReturnRecord[];
@@ -22,6 +34,7 @@ export function generateSupply(
   const eventCount = input.disruptionLevel === "high" ? 12 : input.disruptionLevel === "moderate" ? 7 : 3;
   const horizon = getScenarioHorizon(input);
   const finalAdjustmentDate = horizon.asOfDate;
+  const researchContext = buildResearchContext(profile);
   const supplyEvents = Array.from({ length: eventCount }, (_, index): SupplyEvent => {
     const eventMonth = monthAtOffset(input, random.int(0, Math.max(0, horizon.totalMonths - 1)));
     const startDate = clampDate(
@@ -36,7 +49,7 @@ export function generateSupply(
       endDate: clampDate(addDays(startDate, random.int(7, 45)), horizon.asOfDate),
       eventType: random.pick(EVENT_TYPES),
       severity: input.disruptionLevel === "high" ? random.pick(SEVERITIES) : index % 3 === 0 ? "medium" : "low",
-      narrative: "Synthetic supply disruption generated from scenario disruption assumptions.",
+      narrative: buildSupplyNarrative(input, index, researchContext),
     };
   });
 
@@ -117,6 +130,25 @@ export function generateSupply(
   }
 
   return { supplyEvents, returns, rejections, credits };
+}
+
+function buildSupplyNarrative(
+  input: ScenarioInput,
+  index: number,
+  researchContext: ReturnType<typeof buildResearchContext>,
+): string {
+  const productFamily = pickResearchSignal(researchContext.productFamilies, index);
+  const market = pickResearchSignal(researchContext.markets, index);
+  const language = pickResearchSignal(researchContext.industryLanguage, index);
+
+  if (!productFamily && !market && !language) {
+    return "Synthetic supply disruption generated from scenario disruption assumptions.";
+  }
+
+  const subject = language ?? productFamily ?? input.industry.toLowerCase();
+  const marketText = market ? ` for ${market}` : "";
+
+  return `Synthetic supply disruption around ${subject}${marketText}, based on researched public operating language and scenario disruption assumptions.`;
 }
 
 function addDaysClamped(dateString: string, days: number, maxDateString: string): string {

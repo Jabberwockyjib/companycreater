@@ -5,8 +5,10 @@ import type {
   Salesperson,
   ScenarioInput,
   Territory,
+  CompanyProfile,
 } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { buildResearchContext, pickResearchSignal } from "./research-context";
 import { clampDate, getScenarioHorizon } from "./time";
 
 const COMPANY_PREFIXES = ["Atlas", "Beacon", "Cobalt", "Delta", "Evergreen", "Frontier", "Granite", "Harbor", "Keystone", "Liberty", "Meridian", "Northstar"];
@@ -23,6 +25,7 @@ export function generateCustomers(
   random: SeededRandom,
   salespeople: Salesperson[],
   territories: Territory[],
+  profile?: CompanyProfile,
 ): {
   customers: Customer[];
   contacts: Contact[];
@@ -32,6 +35,7 @@ export function generateCustomers(
   const contacts: Contact[] = [];
   const lifecycleEvents: LifecycleEvent[] = [];
   const horizon = getScenarioHorizon(input);
+  const researchContext = buildResearchContext(profile);
   const lostCount =
     input.churnRate === 0 ? 0 : Math.max(1, Math.floor(input.customerCount * input.churnRate));
 
@@ -62,11 +66,11 @@ export function generateCustomers(
       accountStatus,
       segment,
       annualPotential,
-      story: `${name} buys ${input.industry.toLowerCase()} products through ${region}.`,
+      story: buildCustomerStory(name, input, region, index, researchContext),
       riskProfile: index < lostCount ? "high" : random.pick(RISKS),
     });
 
-    const contactRoles = buildContactRoles(segment, random);
+    const contactRoles = buildContactRoles(segment, random, researchContext.buyerSegments);
 
     contactRoles.forEach((role, contactIndex) => {
       const contactName = `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}`;
@@ -133,9 +137,12 @@ function addMonths(dateString: string, offset: number, day: string): string {
 function buildContactRoles(
   segment: Customer["segment"],
   random: SeededRandom,
+  buyerSegments: string[] = [],
 ): Contact["role"][] {
+  const researchedRoles = buyerSegments.flatMap(mapBuyerSegmentToContactRoles);
+
   if (segment === "commercial") {
-    return [...CORE_CONTACT_ROLES];
+    return [...new Set<Contact["role"]>([...CORE_CONTACT_ROLES, ...researchedRoles])];
   }
 
   const optionalCount = segment === "enterprise" ? 2 : 1;
@@ -143,5 +150,47 @@ function buildContactRoles(
     OPTIONAL_CONTACT_ROLES[(index + random.int(0, OPTIONAL_CONTACT_ROLES.length - 1)) % OPTIONAL_CONTACT_ROLES.length],
   );
 
-  return [...new Set<Contact["role"]>([...CORE_CONTACT_ROLES, ...optionalRoles])];
+  return [...new Set<Contact["role"]>([...CORE_CONTACT_ROLES, ...optionalRoles, ...researchedRoles])];
+}
+
+function buildCustomerStory(
+  name: string,
+  input: ScenarioInput,
+  region: string,
+  index: number,
+  researchContext: ReturnType<typeof buildResearchContext>,
+): string {
+  const market = pickResearchSignal(researchContext.markets, index);
+  const buyer = pickResearchSignal(researchContext.buyerSegments, index);
+  const channel = pickResearchSignal(researchContext.channels, index);
+  const geography = pickResearchSignal(researchContext.geographies, index);
+
+  if (!market && !buyer && !channel && !geography) {
+    return `${name} buys ${input.industry.toLowerCase()} products through ${region}.`;
+  }
+
+  const marketText = market ?? `${input.industry.toLowerCase()} applications`;
+  const buyerText = buyer ? ` for ${buyer}` : "";
+  const channelText = channel ? ` through ${channel}` : ` through ${region}`;
+  const geographyText = geography ? ` with public research ties to ${geography}` : "";
+
+  return `${name} buys ${input.industry.toLowerCase()} products for ${marketText}${buyerText}${channelText}${geographyText}.`;
+}
+
+function mapBuyerSegmentToContactRoles(segment: string): Contact["role"][] {
+  const normalized = segment.toLowerCase();
+
+  if (normalized.includes("engineering") || normalized.includes("designer") || normalized.includes("technical")) {
+    return ["technical_evaluator"];
+  }
+
+  if (normalized.includes("procurement") || normalized.includes("buyer")) {
+    return ["procurement"];
+  }
+
+  if (normalized.includes("maintenance") || normalized.includes("operation") || normalized.includes("plant")) {
+    return ["operations"];
+  }
+
+  return [];
 }

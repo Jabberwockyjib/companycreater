@@ -1,5 +1,6 @@
 import type { CompanyProfile, ProductFamily, ScenarioInput, Sku } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { buildResearchContext } from "./research-context";
 
 const FAMILY_NAMES = [
   "Core Components",
@@ -56,32 +57,7 @@ export function generateProducts(
 }
 
 function extractResearchedFamilyNames(profile?: CompanyProfile): string[] {
-  if (!profile) {
-    return [];
-  }
-
-  return [
-    ...new Set(
-      profile.claims
-        .filter((claim) => claim.field === "ai.productFamilies")
-        .map((claim) => normalizeProductFamilyName(claim.value))
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ].slice(0, 8);
-}
-
-function normalizeProductFamilyName(value: string): string | undefined {
-  const rawName = value.includes(":") ? value.split(":").at(-1) : value;
-  const normalized = rawName
-    ?.replace(/\s+/g, " ")
-    .replace(/[.。]+$/g, "")
-    .trim();
-
-  if (!normalized || normalized.length < 2) {
-    return undefined;
-  }
-
-  return normalized.slice(0, 80);
+  return buildResearchContext(profile).productFamilies.slice(0, 8);
 }
 
 function round(value: number): number {

@@ -188,6 +188,84 @@ describe("generateScenario", () => {
     expect(skuNames.some((name) => name.startsWith("Worm Gears"))).toBe(true);
   });
 
+  it("uses non-product AI research signals in generated customer and operating narratives", () => {
+    const scenario = generateScenario(
+      {
+        ...defaultScenarioInput,
+        mode: "real_company",
+        customerCount: 32,
+        skuCount: 36,
+        disruptionLevel: "moderate",
+      },
+      {
+        researchProfile: {
+          companyName: "Cleveland Gear Company",
+          industry: "Industrial Components",
+          revenueTarget: defaultScenarioInput.revenueTarget,
+          regions: defaultScenarioInput.regions,
+          channels: defaultScenarioInput.channels,
+          claims: [
+            {
+              id: "ai_market_1",
+              field: "ai.markets",
+              value: "AI extracted markets: Steel Production and Processing",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_channel_1",
+              field: "ai.channels",
+              value: "AI extracted channels: Distributors",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_geo_1",
+              field: "ai.geographies",
+              value: "AI extracted geographies: Cleveland, Ohio",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_launch_1",
+              field: "ai.launches",
+              value: "AI extracted launches: Redesigned Millennium Series Drives",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_buyer_1",
+              field: "ai.buyerSegments",
+              value: "AI extracted buyer segments: Maintenance Teams",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+            {
+              id: "ai_language_1",
+              field: "ai.industryLanguage",
+              value: "AI extracted industry language: Output Torque",
+              sourceType: "inferred",
+              confidence: 0.55,
+            },
+          ],
+        },
+      },
+    );
+
+    expect(scenario.tables.customers.some((customer) => customer.story.includes("Steel Production and Processing"))).toBe(
+      true,
+    );
+    expect(scenario.tables.customers.some((customer) => customer.story.includes("Maintenance Teams"))).toBe(true);
+    expect(scenario.tables.customers.some((customer) => customer.story.includes("Distributors"))).toBe(true);
+    expect(scenario.tables.customers.some((customer) => customer.story.includes("Cleveland, Ohio"))).toBe(true);
+    expect(
+      scenario.tables.opportunities.some((opportunity) =>
+        opportunity.closeReason.includes("Redesigned Millennium Series Drives"),
+      ),
+    ).toBe(true);
+    expect(scenario.tables.supplyEvents.some((event) => event.narrative.includes("Output Torque"))).toBe(true);
+  });
+
   it("gives lost customers pre-loss orders and stops orders after the loss date", () => {
     const scenario = generateScenario({
       ...defaultScenarioInput,

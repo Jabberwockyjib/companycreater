@@ -1,5 +1,6 @@
-import type { Customer, Opportunity, Salesperson, ScenarioInput, Territory } from "@/lib/domain/types";
+import type { CompanyProfile, Customer, Opportunity, Salesperson, ScenarioInput, Territory } from "@/lib/domain/types";
 import type { SeededRandom } from "./random";
+import { buildResearchContext, pickResearchSignal } from "./research-context";
 import { clampDate, getScenarioHorizon, monthAtOffset } from "./time";
 
 const FIRST_NAMES = ["Alex", "Bailey", "Cameron", "Drew", "Elliot", "Francis", "Gale", "Hayden", "Jamie", "Kendall", "Logan", "Micah", "Quinn", "Reese"];
@@ -10,6 +11,7 @@ export function generateSales(
   input: ScenarioInput,
   random: SeededRandom,
   customers: Customer[],
+  profile?: CompanyProfile,
 ): {
   territories: Territory[];
   salespeople: Salesperson[];
@@ -31,7 +33,7 @@ export function generateSales(
     rampStatus: index < Math.ceil(input.salesRepCount * 0.2) ? "ramping" : random.pick(RAMP_STATUSES),
   }));
 
-  const opportunities = generateOpportunities(input, random, customers, salespeople);
+  const opportunities = generateOpportunities(input, random, customers, salespeople, profile);
 
   return { territories, salespeople, opportunities };
 }
@@ -67,8 +69,10 @@ export function generateOpportunities(
   random: SeededRandom,
   customers: Customer[],
   salespeople: Salesperson[],
+  profile?: CompanyProfile,
 ): Opportunity[] {
   const horizon = getScenarioHorizon(input);
+  const researchContext = buildResearchContext(profile);
 
   return customers.map((customer, index): Opportunity => {
     const salesperson =
@@ -89,13 +93,42 @@ export function generateOpportunities(
       stage,
       expectedValue: round(customer.annualPotential * random.money(0.15, 0.55)),
       closeDate,
-      cycleDays: random.int(28, 180),
-      closeReason:
-        customer.accountStatus === "lost"
-          ? "Won initial business before the customer later churned."
-          : "Generated from synthetic pipeline assumptions.",
+      cycleDays: buildCycleDays(random, researchContext.buyerSegments),
+      closeReason: buildCloseReason(customer, index, researchContext),
     };
   });
+}
+
+function buildCycleDays(random: SeededRandom, buyerSegments: string[]): number {
+  const hasTechnicalBuyer = buyerSegments.some((segment) =>
+    /engineering|designer|technical|maintenance|plant|operation/i.test(segment),
+  );
+
+  return hasTechnicalBuyer ? random.int(55, 210) : random.int(28, 180);
+}
+
+function buildCloseReason(
+  customer: Customer,
+  index: number,
+  researchContext: ReturnType<typeof buildResearchContext>,
+): string {
+  const market = pickResearchSignal(researchContext.markets, index);
+  const buyer = pickResearchSignal(researchContext.buyerSegments, index);
+  const launch = pickResearchSignal(researchContext.launches, index);
+  const language = pickResearchSignal(researchContext.industryLanguage, index);
+
+  if (!market && !buyer && !launch && !language) {
+    return customer.accountStatus === "lost"
+      ? "Won initial business before the customer later churned."
+      : "Generated from synthetic pipeline assumptions.";
+  }
+
+  const demandDriver = launch ?? language ?? "researched public demand signals";
+  const buyerText = buyer ? ` for ${buyer}` : "";
+  const marketText = market ? ` in ${market}` : "";
+  const lossText = customer.accountStatus === "lost" ? " before the customer later churned" : "";
+
+  return `Won based on ${demandDriver}${buyerText}${marketText}${lossText}.`;
 }
 
 function round(value: number): number {

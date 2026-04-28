@@ -42,8 +42,15 @@ export function generateScenario(
     random,
     salespeople,
     territories,
+    options.researchProfile,
   );
-  const opportunities = generateOpportunities(parsedInput, random, customers, salespeople);
+  const opportunities = generateOpportunities(
+    parsedInput,
+    random,
+    customers,
+    salespeople,
+    options.researchProfile,
+  );
   const { orders, orderLineItems, inventoryPositions, invoices, payments, monthlyRevenue } = generateOrders(
     {
       ...parsedInput,
@@ -63,6 +70,7 @@ export function generateScenario(
     skus,
     orders,
     orderLineItems,
+    options.researchProfile,
   );
 
   applyCredits(monthlyRevenue, credits.map((credit) => ({
